@@ -44,7 +44,8 @@ async function doJob(job: Job) {
 
     // step5: return if continue or not
     const currentCount = results.length;
-    console.log(`synced ${startId} - ${endId} (${currentCount} records) from source to warehouse.`);
+    const time = new Date().toTimeString().split(' ')[0];
+    console.log(`synced ${startId} - ${endId} (${currentCount} records) at ${time}`);
     return true;
   } catch (error) {
     console.error(error);
