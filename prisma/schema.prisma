@@ -12,19 +12,19 @@ datasource db {
 
 model account_versions {
   id           Int       @id @default(autoincrement())
-  member_id    Int
-  account_id    Int
-  reason       Int
-  balance      Decimal
-  locked       Decimal
-  fee          Decimal
-  amount       Decimal
-  modifiable_id Int
-  modifiable_type String
-  created_at    DateTime  @default(now())
-  updated_at    DateTime  @default(now())
-  currency   Int
-  fun      Int
+  member_id    Int?
+  account_id    Int?
+  reason       Int?
+  balance      Decimal?
+  locked       Decimal?
+  fee          Decimal?
+  amount       Decimal?
+  modifiable_id Int?
+  modifiable_type String?
+  created_at    DateTime?  @default(now())
+  updated_at    DateTime?  @default(now())
+  currency   Int?
+  fun      Int?
 }
 
 model accounting_events {
