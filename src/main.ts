@@ -34,9 +34,9 @@ async function doJob(job: Job) {
     const step3Query = `INSERT INTO account_versions (id, member_id, account_id, reason, balance, locked, fee, amount, modifiable_id, modifiable_type, created_at, updated_at, currency, fun) VALUES ${step3Values};`;
     await warehouseDB.query(step3Query);
 
-    // step4: update or create job status
+    // step4: update or insert job status
     const unix_timestamp = Math.round((new Date()).getTime() / 1000);
-    const step4Query = `INSERT INTO jobs (table_name, sync_id, parsed_id, created_at, updated_at) VALUES ('${table_name}', ${endId}, 0, ${unix_timestamp}, ${unix_timestamp}) ON DUPLICATE KEY UPDATE sync_id = ${endId}, updated_at = ${unix_timestamp};`;
+    const step4Query = `INSERT INTO jobs (table_name, sync_id, parsed_id, created_at, updated_at) VALUES ('${table_name}', ${endId}, 0, ${unix_timestamp}, ${unix_timestamp}) ON CONFLICT(table_name) DO UPDATE SET sync_id = ${endId}, updated_at = ${unix_timestamp};`;
     await warehouseDB.query(step4Query);
 
     // step5: return if continue or not
