@@ -28,16 +28,18 @@ async function doJob(job: Job) {
     const [results, metadata] = await sourceDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE id > ${startId} AND id <= ${endId};`);
 
     // step3: write data to warehouse
-    const step3Values = results.map((result: any) => {
-      return `(${result.id}, ${result.member_id}, ${result.account_id}, '${result.reason}', ${result.balance}, ${result.locked}, ${result.fee}, ${result.amount}, ${result.modifiable_id}, '${result.modifiable_type}', '${result.created_at.toISOString()}', '${result.updated_at.toISOString()}', '${result.currency}', ${result.fun})`;
-    });
-    const step3Query = `INSERT INTO account_versions (id, member_id, account_id, reason, balance, locked, fee, amount, modifiable_id, modifiable_type, created_at, updated_at, currency, fun) VALUES ${step3Values};`;
-    await warehouseDB.query(step3Query);
+    if(results.length > 0) {
+      const step3Values = results.map((result: any) => {
+        return `(${result.id}, ${result.member_id}, ${result.account_id}, '${result.reason}', ${result.balance}, ${result.locked}, ${result.fee}, ${result.amount}, ${result.modifiable_id}, '${result.modifiable_type}', '${result.created_at.toISOString()}', '${result.updated_at.toISOString()}', '${result.currency}', ${result.fun})`;
+      });
+      const step3Query = `INSERT INTO account_versions (id, member_id, account_id, reason, balance, locked, fee, amount, modifiable_id, modifiable_type, created_at, updated_at, currency, fun) VALUES ${step3Values};`;
+      const [step3Results] = await warehouseDB.query(step3Query);
+    }
 
     // step4: update or insert job status
     const unix_timestamp = Math.round((new Date()).getTime() / 1000);
     const step4Query = `INSERT INTO jobs (table_name, sync_id, parsed_id, created_at, updated_at) VALUES ('${table_name}', ${endId}, 0, ${unix_timestamp}, ${unix_timestamp}) ON CONFLICT(table_name) DO UPDATE SET sync_id = ${endId}, updated_at = ${unix_timestamp};`;
-    await warehouseDB.query(step4Query);
+    const [step4Results] = await warehouseDB.query(step4Query);
 
     // step5: return if continue or not
     console.log(`synced ${startId} - ${endId} (${count} records) from source to warehouse.`);
@@ -55,12 +57,12 @@ async function sleep(ms: number = 1000) {
 async function syncDB() {
   const job:Job = {
     table_name: 'account_versions',
-    count: 10
+    count: 1000
   };
 
   let keepGo = await doJob(job);
   while (keepGo)  {
-    await sleep(1000);
+    await sleep();
     keepGo = await doJob(job);
   }
 
