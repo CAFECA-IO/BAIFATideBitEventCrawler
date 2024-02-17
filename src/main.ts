@@ -19,7 +19,12 @@ async function doJob(job: Job) {
     const jobs_keys_str = jobs_keys.join(', ');
     const step1Query = `SELECT ${jobs_keys_str} FROM jobs WHERE table_name = '${table_name}';`;
     const [jobStatus, jobStatusMetadata] = await warehouseDB.query(step1Query);
-    const startId: number = (jobStatus[0] as { sync_id: number })?.sync_id || 0;
+    const jobStartId: number = (jobStatus[0] as { sync_id: number })?.sync_id || 0;
+
+    // step1.1: check latest id from warehouse
+    const [latestIdResults, latestIdMetadata] = await sourceDB.query(`SELECT MAX(id) FROM account_versions;`);
+    const latestId: number = (latestIdResults[0] as { max: number })?.max || 0;
+    const startId: number = latestId > jobStartId ? latestId : jobStartId;
     const endId: number = startId + count;
 
     // step2: read data from source
@@ -66,9 +71,11 @@ async function syncDB() {
   let keepGo = await doJob(job);
   while (keepGo)  {
     const m = new Date().getMinutes();
-    if(m > 57) return;
-
-    await sleep();
+    if(m > 57) {
+      await sleep(3000000);
+    } else {
+      await sleep();
+    }
     keepGo = await doJob(job);
   }
 
