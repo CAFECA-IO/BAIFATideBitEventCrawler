@@ -29,7 +29,7 @@ async function doJob(job: Job) {
 
     // step3: write data to warehouse
     const step3Values = results.map((result: any) => {
-      return `(${result.id}, ${result.member_id}, ${result.account_id}, '${result.reason}', ${result.balance}, ${result.locked}, ${result.fee}, ${result.amount}, ${result.modifiable_id}, '${result.modifiable_type}', '${result.created_at}', '${result.updated_at}', '${result.currency}', ${result.fun})`;
+      return `(${result.id}, ${result.member_id}, ${result.account_id}, '${result.reason}', ${result.balance}, ${result.locked}, ${result.fee}, ${result.amount}, ${result.modifiable_id}, '${result.modifiable_type}', '${result.created_at.toISOString()}', '${result.updated_at.toISOString()}', '${result.currency}', ${result.fun})`;
     });
     const step3Query = `INSERT INTO account_versions (id, member_id, account_id, reason, balance, locked, fee, amount, modifiable_id, modifiable_type, created_at, updated_at, currency, fun) VALUES ${step3Values};`;
     await warehouseDB.query(step3Query);
