@@ -64,7 +64,7 @@ async function syncDB() {
 
   let keepGo = await doJob(job);
   while (keepGo)  {
-    await sleep();
+    await sleep(500);
     keepGo = await doJob(job);
   }
 
