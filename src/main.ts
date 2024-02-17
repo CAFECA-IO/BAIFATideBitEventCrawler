@@ -43,7 +43,8 @@ async function doJob(job: Job) {
     const [step4Results] = await warehouseDB.query(step4Query);
 
     // step5: return if continue or not
-    console.log(`synced ${startId} - ${endId} (${count} records) from source to warehouse.`);
+    const currentCount = results.length;
+    console.log(`synced ${startId} - ${endId} (${currentCount} records) from source to warehouse.`);
     return true;
   } catch (error) {
     console.error(error);
