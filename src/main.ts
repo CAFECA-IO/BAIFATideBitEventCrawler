@@ -28,7 +28,10 @@ async function doJob(job: Job) {
     const [results, metadata] = await sourceDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE id > ${startId} AND id <= ${endId};`);
 
     // step3: write data to warehouse
-    const step3Query = `INSERT INTO account_versions (id, member_id, account_id, reason, balance, locked, fee, amount, modifiable_id, modifiable_type, created_at, updated_at, currency, fun) VALUES ${results.map((result: any) => `(${result.id}, ${result.member_id}, ${result.account_id}, ${result.reason}, ${result.balance}, ${result.locked}, ${result.fee}, ${result.amount}, ${result.modifiable_id}, ${result.modifiable_type}, ${result.created_at}, ${result.updated_at}, ${result.currency}, ${result.fun})`).join(', ')};`;
+    const step3Values = results.map((result: any) => {
+      return `(${result.id}, ${result.member_id}, ${result.account_id}, '${result.reason}', ${result.balance}, ${result.locked}, ${result.fee}, ${result.amount}, ${result.modifiable_id}, '${result.modifiable_type}', '${result.created_at}', '${result.updated_at}', '${result.currency}', ${result.fun})`;
+    });
+    const step3Query = `INSERT INTO account_versions (id, member_id, account_id, reason, balance, locked, fee, amount, modifiable_id, modifiable_type, created_at, updated_at, currency, fun) VALUES ${step3Values};`;
     await warehouseDB.query(step3Query);
 
     // step4: update or create job status
@@ -52,7 +55,7 @@ async function sleep(ms: number = 1000) {
 async function syncDB() {
   const job:Job = {
     table_name: 'account_versions',
-    count: 1000
+    count: 10
   };
 
   let keepGo = await doJob(job);
