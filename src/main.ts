@@ -53,8 +53,10 @@ async function doJob(job: Job) {
   }
 }
 
-async function sleep(ms: number = 1000) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+async function sleep(ms: number = 500) {
+  const m = new Date().getMinutes();
+  const sleepTime = m > 57 ? 3000000 : ms;
+  return new Promise(resolve => setTimeout(resolve, sleepTime));
 }
 
 async function syncDB() {
@@ -65,7 +67,7 @@ async function syncDB() {
 
   let keepGo = await doJob(job);
   while (keepGo)  {
-    await sleep(500);
+    await sleep();
     keepGo = await doJob(job);
   }
 
