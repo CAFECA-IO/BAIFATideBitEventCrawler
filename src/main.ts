@@ -57,7 +57,7 @@ async function sleep(ms: number = 1000) {
 async function syncDB() {
   const job:Job = {
     table_name: 'account_versions',
-    count: 1000
+    count: 10000
   };
 
   let keepGo = await doJob(job);
