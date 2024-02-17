@@ -3,12 +3,11 @@
 
 generator client {
   provider = "prisma-client-js"
-  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("SOURCE_DATABASE_URL")
+  provider = "postgresql"
+  url      = env("WAREHOUSE_DATABASE_URL")
 }
 
 model account_versions {
@@ -26,4 +25,23 @@ model account_versions {
   updated_at    DateTime  @default(now())
   currency   Int
   fun      Int
+}
+
+model accounting_events {
+  id           Int       @id @default(autoincrement())
+  event_code   String
+  type         String
+  details      Json
+  occurred_at  Int       @default(0)
+  created_at   Int       @default(0)
+  account_version_ids Json
+}
+
+model jobs {
+  id           Int       @id @default(autoincrement())
+  table_name   String    @unique
+  sync_id      Int
+  parsed_id    Int
+  created_at   Int       @default(0)
+  updated_at   Int       @default(0)
 }
