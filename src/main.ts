@@ -22,8 +22,8 @@ async function doJob(job: Job) {
     const jobStartId: number = (jobStatus[0] as { sync_id: number })?.sync_id || 0;
 
     // step1.1: check latest id from warehouse
-    const [latestIdResults, latestIdMetadata] = await sourceDB.query(`SELECT MAX(id) FROM account_versions;`);
-    const latestId: number = (latestIdResults[0] as { max: number })?.max || 0;
+    const [latestIdResults, latestIdMetadata] = await sourceDB.query(`SELECT MAX(id) as id FROM account_versions;`);
+    const latestId: number = (latestIdResults[0] as { id: number })?.id || 0;
     const startId: number = latestId > jobStartId ? latestId : jobStartId;
     const endId: number = startId + count;
 
