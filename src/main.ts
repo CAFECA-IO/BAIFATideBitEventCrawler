@@ -70,12 +70,7 @@ async function syncDB() {
 
   let keepGo = await doJob(job);
   while (keepGo)  {
-    const m = new Date().getMinutes();
-    if(m > 57) {
-      await sleep(3000000);
-    } else {
-      await sleep();
-    }
+    await sleep();
     keepGo = await doJob(job);
   }
 
