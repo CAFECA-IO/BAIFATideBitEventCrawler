@@ -135,7 +135,7 @@ const exportXLSXs = async () => {
     table_name: 'accounts_2023_04_01'
   };
   const job2:Job = {
-    table_name: 'accounts_2024_01_31'
+    table_name: 'accounts_2024_02_01'
   };
   await exportAccounts(job1);
   await exportAccounts(job2);
