@@ -90,8 +90,8 @@ async function analyze() {
     date: '2024-01-31'
   };
 
-  findDateVersionID(job1);
-  findDateVersionID(job2);
+  await findDateVersionID(job1);
+  await findDateVersionID(job2);
 
   sourceDB.close();
   warehouseDB.close();
