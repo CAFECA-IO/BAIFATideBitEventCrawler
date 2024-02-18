@@ -118,11 +118,17 @@ const exportAccounts = async (job: Job) => {
 
     // step5: write data to xlsx
     const filePath = `./${table_name}.xlsx`;
-    const workbook = XLSX.utils.book_new();
     const data = Object.values(step4Results);
+    const unix_timestamp = Math.round((new Date()).getTime() / 1000);
+    /*
+    const workbook = XLSX.utils.book_new();
     const sheet = XLSX.utils.json_to_sheet(data);
     XLSX.utils.book_append_sheet(workbook, sheet, 'accounts');
     XLSX.writeFile(workbook, filePath);
+    */
+    const step5Query = `INSERT INTO reports (name, data, created_at) VALUES ('${table_name}', '${data}', ${unix_timestamp});`;
+    const [step5Results] = await warehouseDB.query(step5Query);
+    
     return true;
   } catch (error) {
     console.error(error);
