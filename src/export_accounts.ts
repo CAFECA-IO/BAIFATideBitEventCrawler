@@ -126,7 +126,7 @@ const exportAccounts = async (job: Job) => {
     XLSX.utils.book_append_sheet(workbook, sheet, 'accounts');
     XLSX.writeFile(workbook, filePath);
     */
-    const step5Query = `INSERT INTO reports (name, data, created_at) VALUES ('${table_name}', '${data}', ${unix_timestamp});`;
+    const step5Query = `INSERT INTO reports (name, data, created_at) VALUES ('${table_name}', '${JSON.stringify(data)}', ${unix_timestamp});`;
     const [step5Results] = await warehouseDB.query(step5Query);
     
     return true;
