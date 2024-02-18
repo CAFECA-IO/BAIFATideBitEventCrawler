@@ -1,8 +1,10 @@
 import { Sequelize } from 'sequelize';
 import 'dotenv/config';
 
-const sourceDB = new Sequelize(process.env.SOURCE_DATABASE_URL, { logging: false });
-const warehouseDB = new Sequelize(process.env.WAREHOUSE_DATABASE_URL, { logging: false });
+const SOURCE_DATABASE_URL = process.env.SOURCE_DATABASE_URL as string;
+const WAREHOUSE_DATABASE_URL = process.env.WAREHOUSE_DATABASE_URL as string;
+const sourceDB = new Sequelize(SOURCE_DATABASE_URL, { logging: false });
+const warehouseDB = new Sequelize(WAREHOUSE_DATABASE_URL, { logging: false });
 
 type Job = {
   table_name: string;
