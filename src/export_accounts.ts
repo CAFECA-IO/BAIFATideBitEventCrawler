@@ -1,5 +1,5 @@
 import { Sequelize } from 'sequelize';
-import XLSX from 'xlsx';
+import * as XLSX from 'xlsx';
 import 'dotenv/config';
 
 const SOURCE_DATABASE_URL = process.env.SOURCE_DATABASE_URL as string;
@@ -106,12 +106,12 @@ const exportAccounts = async (job: Job) => {
       const currency = (currencyWithPrice.find((r: any) => r.id === result.currency) as { symbol: string, price: number });
       const symbol = currency.symbol;
       const price = currency.price;
-      const balance = result.balance + result.locked;
+      const balance = Number(result.balance) + Number(result.locked);
       const value = balance * price;
       if (!step4Results[member_email]) {
-        step4Results[member_email] = { email: member_email, [symbol]: value, total_in_USD: value };
+        step4Results[member_email] = { email: member_email, [symbol]: balance, total_in_USD: value };
       } else {
-        step4Results[member_email][symbol] = value;
+        step4Results[member_email][symbol] = balance;
         step4Results[member_email].total_in_USD += value;
       }
     });
@@ -136,7 +136,7 @@ const exportAccounts = async (job: Job) => {
   }
 }
 
-const exportXLSXs = async () => {
+const createReports = async () => {
   const job1:Job = {
     table_name: 'accounts_2023_04_01'
   };
@@ -147,4 +147,35 @@ const exportXLSXs = async () => {
   await exportAccounts(job2);
 }
 
+const exportXLSXs = async () => {
+  const step1Query = `SELECT name, data from reports;`;
+  const [step1Results, step1Metadata] = await warehouseDB.query(step1Query);
+  
+  step1Results.map((result: any) => {
+    const name = result.name;
+    const data = result.data;
+    const summarize = { total_in_USD: 0 };
+    data.map((d: any) => {
+      summarize.total_in_USD += d.total_in_USD;
+      Object.keys(d).map((key: string) => {
+        if (key !== 'email' && key !== 'total_in_USD') {
+          if (!summarize[key]) {
+            summarize[key] = d[key];
+          } else {
+            summarize[key] += d[key];
+          }
+        }
+      });
+    });
+    const filePath = `./${name}.xlsx`;
+    const workbook = XLSX.utils.book_new();
+    const sheet1 = XLSX.utils.json_to_sheet(data);
+    const sheet2 = XLSX.utils.json_to_sheet([summarize]);
+    XLSX.utils.book_append_sheet(workbook, sheet1, 'accounts');
+    XLSX.utils.book_append_sheet(workbook, sheet2, 'summarize');
+    XLSX.writeFile(workbook, filePath);
+  });
+}
+
+// createReports();
 exportXLSXs();
