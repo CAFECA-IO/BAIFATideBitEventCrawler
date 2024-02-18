@@ -77,51 +77,57 @@ const exchangeRate = {
 const exportAccounts = async (job: Job) => {
   const table_name = job.table_name;
 
-  // step1: read account info from source
-  const step1Query = `SELECT id, email from member;`;
-  const [step1Results, step1Metadata] = await sourceDB.query(step1Query);
+  try {
+    // step1: read account info from source
+    const step1Query = `SELECT id, email from members;`;
+    const [step1Results, step1Metadata] = await sourceDB.query(step1Query);
 
-  // step2: read currency info from source and compute price
-  const step2Query = `SELECT id, symbol from asset_bases;`;
-  const [step2Results, step2Metadata] = await sourceDB.query(step2Query);
-  const currencyWithPrice = step2Results.map((result: any) => {
-    const symbol = result.symbol;
-    const price = exchangeRate[symbol] || 0;
-    return {
-      id: result.id,
-      symbol,
-      price
-    };
-  });
+    // step2: read currency info from source and compute price
+    const step2Query = `SELECT id, symbol from asset_bases;`;
+    const [step2Results, step2Metadata] = await sourceDB.query(step2Query);
+    const currencyWithPrice = step2Results.map((result: any) => {
+      const symbol = result.symbol;
+      const price = exchangeRate[symbol] || 0;
+      return {
+        id: result.id,
+        symbol,
+        price
+      };
+    });
 
-  // step3: read account data from warehouse
-  const step3Query = `SELECT id, member_id, account_id, currency, balance, locked, created_at, updated_at from ${table_name};`;
-  const [step3Results, step3Metadata] = await warehouseDB.query(step3Query);
+    // step3: read account data from warehouse
+    const step3Query = `SELECT id, member_id, account_id, currency, balance, locked, created_at, updated_at from ${table_name};`;
+    const [step3Results, step3Metadata] = await warehouseDB.query(step3Query);
 
-  // step4: collect data and calculate price
-  const step4Results = {};
-  step3Results.map((result: any) => {
-    const member_email = (step1Results.find((r: any) => r.id === result.member_id) as { email: string })?.email || '';
-    const currency = (currencyWithPrice.find((r: any) => r.id === result.currency) as { symbol: string, price: number });
-    const symbol = currency.symbol;
-    const price = currency.price;
-    const balance = result.balance + result.locked;
-    const value = balance * price;
-    if (!step4Results[member_email]) {
-      step4Results[member_email] = { email: member_email, [symbol]: value, total_in_USD: value };
-    } else {
-      step4Results[member_email][symbol] = value;
-      step4Results[member_email].total_in_USD += value;
-    }
-  });
+    // step4: collect data and calculate price
+    const step4Results = {};
+    step3Results.map((result: any) => {
+      const member_email = (step1Results.find((r: any) => r.id === result.member_id) as { email: string })?.email || '';
+      const currency = (currencyWithPrice.find((r: any) => r.id === result.currency) as { symbol: string, price: number });
+      const symbol = currency.symbol;
+      const price = currency.price;
+      const balance = result.balance + result.locked;
+      const value = balance * price;
+      if (!step4Results[member_email]) {
+        step4Results[member_email] = { email: member_email, [symbol]: value, total_in_USD: value };
+      } else {
+        step4Results[member_email][symbol] = value;
+        step4Results[member_email].total_in_USD += value;
+      }
+    });
 
-  // step5: write data to xlsx
-  const filePath = `./${table_name}.xlsx`;
-  const workbook = XLSX.utils.book_new();
-  const data = Object.values(step4Results);
-  const sheet = XLSX.utils.json_to_sheet(data);
-  XLSX.utils.book_append_sheet(workbook, sheet, 'accounts');
-  XLSX.writeFile(workbook, filePath);
+    // step5: write data to xlsx
+    const filePath = `./${table_name}.xlsx`;
+    const workbook = XLSX.utils.book_new();
+    const data = Object.values(step4Results);
+    const sheet = XLSX.utils.json_to_sheet(data);
+    XLSX.utils.book_append_sheet(workbook, sheet, 'accounts');
+    XLSX.writeFile(workbook, filePath);
+    return true;
+  } catch (error) {
+    console.error(error);
+    return false;
+  }
 }
 
 const exportXLSXs = async () => {
