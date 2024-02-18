@@ -45,3 +45,25 @@ model jobs {
   created_at   Int       @default(0)
   updated_at   Int       @default(0)
 }
+
+model members {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique
+}
+
+model accounts {
+  id           Int       @id @default(autoincrement())
+  member_id    Int
+  currency     Int
+  balance      Decimal
+  locked       Decimal
+  created_at   Int       @default(0)
+  updated_at   Int       @default(0)
+}
+
+model version_time {
+  id           Int       @id @default(autoincrement())
+  account_version_id Int
+  date         String
+  unix_timestamp Int
+}
