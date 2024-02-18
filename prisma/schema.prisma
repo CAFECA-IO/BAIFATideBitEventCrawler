@@ -54,6 +54,7 @@ model members {
 model accounts {
   id           Int       @id @default(autoincrement())
   member_id    Int
+  account_id   Int
   currency     Int
   balance      Decimal
   locked       Decimal
@@ -61,7 +62,29 @@ model accounts {
   updated_at   Int       @default(0)
 }
 
-model version_time {
+model accounts_2023_04_01 {
+  id           Int       @id @default(autoincrement())
+  member_id    Int
+  account_id   Int
+  currency     Int
+  balance      Decimal
+  locked       Decimal
+  created_at   Int       @default(0)
+  updated_at   Int       @default(0)
+}
+
+model accounts_2024_02_01 {
+  id           Int       @id @default(autoincrement())
+  member_id    Int
+  account_id   Int
+  currency     Int
+  balance      Decimal
+  locked       Decimal
+  created_at   Int       @default(0)
+  updated_at   Int       @default(0)
+}
+
+model version_times {
   id           Int       @id @default(autoincrement())
   account_version_id Int
   date         String
