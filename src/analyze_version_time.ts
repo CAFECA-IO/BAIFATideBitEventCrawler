@@ -1,6 +1,5 @@
 import { Sequelize } from 'sequelize';
 import 'dotenv/config';
-import { find } from 'rxjs';
 
 const sourceDB = new Sequelize(process.env.SOURCE_DATABASE_URL, { logging: false });
 const warehouseDB = new Sequelize(process.env.WAREHOUSE_DATABASE_URL, { logging: false });
@@ -57,11 +56,14 @@ async function findDateVersionID(job: Job) {
         // step3: if the middle id's date is less  or equal than the date, then the start id is the middle id
         findLet = checkpoint;
         startId = checkpoint.account_version_id;
+        console.log(`find Let version id: ${findLet.account_version_id} at ${findLet.date} (${findLet.unix_timestamp})`);
       } else {
         // step4: if the middle id's date is greater than the date, then the end id is the middle id
         findGt = checkpoint;
         endId = checkpoint.account_version_id;
+        console.log(`find Gt version id: ${findGt.account_version_id} at ${findGt.date} (${findGt.unix_timestamp})`);
       }
+      done = endId - startId <= 1;
     }
 
     // step5: save result to warehouse
