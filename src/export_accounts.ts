@@ -1,9 +1,11 @@
+import { promises as fs } from 'fs';
 import { Sequelize } from 'sequelize';
 import * as XLSX from 'xlsx';
 import 'dotenv/config';
 
 const SOURCE_DATABASE_URL = process.env.SOURCE_DATABASE_URL as string;
 const WAREHOUSE_DATABASE_URL = process.env.WAREHOUSE_DATABASE_URL as string;
+const REPORTS_DIR = process.env.REPORTS_DIR as string;
 const sourceDB = new Sequelize(SOURCE_DATABASE_URL, { logging: false });
 const warehouseDB = new Sequelize(WAREHOUSE_DATABASE_URL, { logging: false });
 
@@ -76,6 +78,21 @@ const exchangeRate = {
   C98: 0.34,
   GALA: 0.0256,
   FIL: 6.23,
+}
+
+const folderExists = async (f: string) => {
+  try {
+    await fs.stat(f);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const ensureFolder = async (f: string) => {
+  if (!await folderExists(f)) {
+    await fs.mkdir(f);
+  }
 }
 
 const exportAccounts = async (job: Job) => {
@@ -152,6 +169,9 @@ const createReports = async () => {
 }
 
 const exportXLSXs = async () => {
+  await ensureFolder(REPORTS_DIR);
+
+  // step1: read reports from warehouse
   const step1Query = `SELECT name, data from reports;`;
   const [step1Results, step1Metadata] = await warehouseDB.query(step1Query);
   
@@ -177,6 +197,7 @@ const exportXLSXs = async () => {
       });
     const summarize = { total_in_USD: 0 };
 
+    // step2: summarize data and write to xlsx for each report
     data.map((d: any) => {
       summarize.total_in_USD += d.total_in_USD;
       Object.keys(d).map((key: string) => {
@@ -189,7 +210,7 @@ const exportXLSXs = async () => {
         }
       });
     });
-    const filePath = `./${name}.xlsx`;
+    const filePath = `./${REPORTS_DIR}/${name}.xlsx`;
     const workbook = XLSX.utils.book_new();
     const sheet1 = XLSX.utils.json_to_sheet(data);
     const sheet2 = XLSX.utils.json_to_sheet([summarize]);
