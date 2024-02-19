@@ -14,7 +14,11 @@ type Job = {
 }
 
 const admin = [
-  'hello@tidepay.io', 'tidebitmarket@gmail.com', 'tidetime.tech@gmail.com', 'tidebittokentbt@gmail.com', 'cp@tidebit.com', ''
+  'hello@tidepay.io',
+  'tidebitmarket@gmail.com',
+  'tidetime.tech@gmail.com',
+  'tidebittokentbt@gmail.com',
+  'cp@tidebit.com', ''
 ]
 
 const exchangeRate = {
