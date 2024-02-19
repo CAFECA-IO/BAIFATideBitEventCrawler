@@ -12,7 +12,7 @@ type Job = {
 }
 
 const admin = [
-  'majun', 'aryama', 'aryaya', 'terence.tsang', 'jianyma', 'chenping'
+  'hello@tidepay.io', 'tidebitmarket@gmail.com', 'tidetime.tech@gmail.com', 'tidebittokentbt@gmail.com', 'cp@tidebit.com', ''
 ]
 
 const exchangeRate = {
@@ -157,19 +157,27 @@ const exportXLSXs = async () => {
   
   step1Results.map((result: any) => {
     const name = result.name;
-    const data = result.data;
+    // sort by total_in_USD and filter (remove admin) (remove < 1 USD)
+    const data = result.data
+      .sort((a, b) => {
+        if (a.total_in_USD > b.total_in_USD) {
+          return -1;
+        }
+        if (a.total_in_USD < b.total_in_USD) {
+          return 1;
+        }
+        return 0;
+      })
+      .filter((d: any) => {
+        const isAdmin = admin.includes(d.email);
+        const tooSmall = d.total_in_USD < 1;
+        const keep = !(tooSmall || isAdmin);
+        if(isAdmin) console.log(`remove admin ${d.email} with ${d.total_in_USD} USD`);
+        return keep;
+      });
     const summarize = { total_in_USD: 0 };
+
     data.map((d: any) => {
-      const skip = admin.reduce((acc, cur) => {
-        const user = d.email.split('@')[0];
-        const isAdmin = user.includes(cur);
-        const rs = acc || isAdmin;
-        return rs;
-      }, false);
-      if (skip) {
-        console.log(d.email, 'is admin');
-        return;
-      }
       summarize.total_in_USD += d.total_in_USD;
       Object.keys(d).map((key: string) => {
         if (key !== 'email' && key !== 'total_in_USD') {
@@ -188,6 +196,8 @@ const exportXLSXs = async () => {
     XLSX.utils.book_append_sheet(workbook, sheet1, 'accounts');
     XLSX.utils.book_append_sheet(workbook, sheet2, 'summarize');
     XLSX.writeFile(workbook, filePath);
+
+    console.log(`export ${name}.xlsx total ${summarize.total_in_USD} USD`);
   });
 }
 
