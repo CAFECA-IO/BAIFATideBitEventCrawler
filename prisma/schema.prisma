@@ -90,3 +90,10 @@ model version_times {
   date         String
   unix_timestamp Int
 }
+
+model reports {
+  id           Int       @id @default(autoincrement())
+  name         String
+  data         Json
+  created_at   Int       @default(0)
+}

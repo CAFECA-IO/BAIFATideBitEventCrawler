@@ -47,8 +47,17 @@ async function findDateVersionID(job: Job) {
     let startId = 0;
     let endId = latestId;
     let checkpoint: VersionTime;
-    let findGt: VersionTime;
-    let findLet: VersionTime;
+    let findGt: VersionTime = {
+      account_version_id: 0,
+      date: '1970-01-01',
+      unix_timestamp: 0
+    };
+    let findLet: VersionTime = {
+      account_version_id: 0,
+      date: '1970-01-01',
+      unix_timestamp: 0
+    
+    };
     let done: boolean = false;
 
     while (!done) {
@@ -69,9 +78,11 @@ async function findDateVersionID(job: Job) {
     }
 
     // step5: save result to warehouse
-    const step5Query = `INSERT INTO version_times (account_version_id, date, unix_timestamp) VALUES (${findGt.account_version_id}, '${findGt.date}', ${findGt.unix_timestamp});`;
-    const [step5Results] = await warehouseDB.query(step5Query);
-    console.log(`find ${date} version id: ${findGt.account_version_id} at ${findGt.date} (${findGt.unix_timestamp})`);
+    if(findGt !== undefined) {
+      const step5Query = `INSERT INTO version_times (account_version_id, date, unix_timestamp) VALUES (${findGt.account_version_id}, '${findGt.date}', ${findGt.unix_timestamp});`;
+      const [step5Results] = await warehouseDB.query(step5Query);
+      console.log(`find ${date} version id: ${findGt.account_version_id} at ${findGt.date} (${findGt.unix_timestamp})`);
+    }
   } catch (error) {
     console.error(error);
     return false;

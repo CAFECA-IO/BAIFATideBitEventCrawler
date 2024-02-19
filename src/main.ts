@@ -44,7 +44,8 @@ async function doJob(job: Job) {
     }
 
     // step4: update or insert job status
-    const currentEndId: number = results.length > 0 ? (results[results.length - 1] as { id: number })?.id : startId;
+    const keepGo = results.length > 0;
+    const currentEndId: number = keepGo ? (results[results.length - 1] as { id: number })?.id : startId;
     const unix_timestamp = Math.round((new Date()).getTime() / 1000);
     const step4Query = `INSERT INTO jobs (table_name, sync_id, parsed_id, created_at, updated_at) VALUES ('${table_name}', ${currentEndId}, 0, ${unix_timestamp}, ${unix_timestamp}) ON CONFLICT(table_name) DO UPDATE SET sync_id = ${currentEndId}, updated_at = ${unix_timestamp};`;
     const [step4Results] = await warehouseDB.query(step4Query);
@@ -53,7 +54,7 @@ async function doJob(job: Job) {
     const currentCount = results.length;
     const time = new Date().toTimeString().split(' ')[0];
     console.log(`synced ${startId} - ${endId} (${currentCount} records) at ${time}`);
-    return true;
+    return keepGo;
   } catch (error) {
     console.error(error);
     return false;
@@ -78,5 +79,6 @@ async function syncDB() {
 
   sourceDB.close();
   warehouseDB.close();
+  await sleep(3600000);
 }
 syncDB();
