@@ -11,6 +11,10 @@ type Job = {
   table_name: string;
 }
 
+const admin = [
+  'majun', 'aryama', 'aryaya', 'terence.tsang', 'jianyma', 'chenping'
+]
+
 const exchangeRate = {
   USD: 1,
   BTC: 51846,
@@ -156,6 +160,16 @@ const exportXLSXs = async () => {
     const data = result.data;
     const summarize = { total_in_USD: 0 };
     data.map((d: any) => {
+      const skip = admin.reduce((acc, cur) => {
+        const user = d.email.split('@')[0];
+        const isAdmin = user.includes(cur);
+        const rs = acc || isAdmin;
+        return rs;
+      }, false);
+      if (skip) {
+        console.log(d.email, 'is admin');
+        return;
+      }
       summarize.total_in_USD += d.total_in_USD;
       Object.keys(d).map((key: string) => {
         if (key !== 'email' && key !== 'total_in_USD') {
