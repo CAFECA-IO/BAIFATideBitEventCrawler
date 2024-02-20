@@ -1,7 +1,6 @@
 import { Sequelize } from "sequelize";
 import "dotenv/config";
 
-const SOURCE_DATABASE_URL = process.env.SOURCE_DATABASE_URL as string;
 const WAREHOUSE_DATABASE_URL = process.env.WAREHOUSE_DATABASE_URL as string;
 const warehouseDB = new Sequelize(WAREHOUSE_DATABASE_URL, { logging: false });
 
@@ -14,6 +13,24 @@ const marketMap = markets.reduce((prev, ticker) => {
   prev[ticker.code] = ticker;
   return prev;
 }, {});
+
+const account_versions_keys = ["id", "member_id", "account_id", "reason", "balance", "locked", "fee", "amount", "modifiable_id", "modifiable_type", "created_at", "updated_at", "currency", "fun"];
+const account_versions_keys_str = account_versions_keys.join(", ");
+
+const events_keys = ["id", "event_code", "type", "details", "occurred_at", "created_at", "account_version_ids"];
+const events_keys_str = events_keys.join(", ");
+
+const referral_commissions_keys = ["id", "referred_by_member_id", "market", "currency", "amount", "state", "deposited_at"];
+const referral_commissions_keys_str = referral_commissions_keys.join(", ");
+
+const orders_keys = ["id", "bid", "ask", "price", "origin_volume", "type", "member_id", "created_at"];
+const orders_keys_str = orders_keys.join(", ");
+
+const trades_keys = ["id", "bid", "ask", "ask_member_id", "bid_member_id", "updated_at"];
+const trades_keys_str = trades_keys.join(", ");
+
+const jobs_keys = ["id", "table_name", "sync_id", "parsed_id", "created_at", "updated_at"];
+const jobs_keys_str = jobs_keys.join(", ");
 
 type Job = {
   table_name: string;
@@ -51,65 +68,63 @@ interface Order {
   id: number,
   bid: number,
   ask: number,
-  currency: number,
+  // currency: number,
   price: number,
-  volume: number,
+  // volume: number,
   origin_volume: number,
-  state: number,
-  done_at: Date,
+  // state: number,
+  // done_at: Date,
   type: string,
   member_id: number,
   created_at: Date,
-  updated_at: Date,
-  sn?: string,
-  source: string,
-  ord_type: string,
-  locked: number,
-  origin_locked: number,
-  funds_received: number,
-  trades_count: number,
+  // updated_at: Date,
+  // sn?: string,
+  // source: string,
+  // ord_type: string,
+  // locked: number,
+  // origin_locked: number,
+  // funds_received: number,
+  // trades_count: number,
 }
 
 interface Trade {
   id: number,
-  price: number,
-  volume: number,
+  // price: number,
+  // volume: number,
   ask_id: number,
   bid_id: number,
-  trend: string,
-  currency: number,
-  created_at: Date,
-  updated_at: Date,
+  // trend: string,
+  // currency: number,
+  // created_at: Date,
+  // updated_at: Date,
   ask_member_id: number,
   bid_member_id: number,
-  funds: number,
-  trade_fk: number
+  // funds: number,
+  // trade_fk: number
 }
 
 interface ReferralCommision {
   id: number,
   referred_by_member_id: number,
-  trade_member_id: number,
-  voucher_id?: number,
-  applied_plan_id?: number,
-  applied_policy_id?: number,
-  trend: string,
+  // trade_member_id: number,
+  // voucher_id?: number,
+  // applied_plan_id?: number,
+  // applied_policy_id?: number,
+  // trend: string,
   market: number,
   currency: number,
-  ref_gross_fee: number,
-  ref_net_fee: number,
+  // ref_gross_fee: number,
+  // ref_net_fee: number,
   amount: number,
   state: string,
   deposited_at?: Date,
-  created_at: Date,
-  updated_at: Date,
+  // created_at: Date,
+  // updated_at: Date,
 }
 
 async function convertDeposit(accountVersion: AccountVersion): Promise<TideBitEvent> {
   const currency = currencyMap[accountVersion.currency].code.toUpperCase();
   let tidebitEventCode: string = EVENT_CODE.DEPOSIT[currency];
-  const referral_commissions_keys = ["id", "referred_by_member_id", "trade_member_id", "voucher_id", "applied_plan_id", "applied_policy_id", "trend", "market", "currency", "ref_gross_fee", "ref_net_fee", "amount", "state", "deposited_at", "created_at", "updated_at"];
-  const referral_commissions_keys_str = referral_commissions_keys.join(", ");
   const [result, metadata] = await warehouseDB.query(`SELECT ${referral_commissions_keys_str} FROM referral_commissions state = "deposited" AND referred_by_member_id = ${accountVersion.member_id} AND currency = ${accountVersion.currency} AND amount = ${accountVersion.balance} AND deposited_at <= "${accountVersion.created_at}" LIMIT 1;`);
   // Deprecated: debug (20240220 - tzuhan)
   console.log(`convertDeposit result`, result)
@@ -159,8 +174,6 @@ async function convertWithdraw(
   type: string,
   accountVersion: AccountVersion
 ): Promise<TideBitEvent> {
-  const account_versions_keys = ["id", "member_id", "account_id", "reason", "balance", "locked", "fee", "amount", "modifiable_id", "modifiable_type", "created_at", "updated_at", "currency", "fun"];
-  const account_versions_keys_str = account_versions_keys.join(", ");
   const [result, metadata] = await warehouseDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE modifiable_id = ${accountVersion.modifiable_id} AND reason = ${REASON[`WITHDRAW_FEE${type ? `_${type}` : ""}`]} LIMIT 1;`);
   // Deprecated: debug (20240220 - tzuhan)
   console.log(`convertWithraw result`, result)
@@ -194,8 +207,6 @@ async function convertOrder(
 ): Promise<TideBitEvent> {
   let currency1: string, currency2: string, order: Order, tidebitEventCode: string, tidebitEvnet: TideBitEvent;
   // TODO: need orders table (20240220 - tzuhan)
-  const orders_keys = ["id", "bid", "ask", "currency", "price", "volume", "origin_volume", "state", "done_at", "type", "member_id", "created_at", "updated_at", "sn", "source", "ord_type", "locked", "origin_locked", "funds_received", "trades_count"];
-  const orders_keys_str = orders_keys.join(", ");
   const [result, metadata] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${accountVersion.modifiable_id} LIMIT 1;`);
   // Deprecated: debug (20240220 - tzuhan)
   console.log(`convertOrder result`, result)
@@ -231,32 +242,24 @@ async function convertTrade(
   tidebitEvents: TideBitEvent[]
 ): Promise<TideBitEvent | null> {
 
-  const account_versions_keys = ["id", "member_id", "account_id", "reason", "balance", "locked", "fee", "amount", "modifiable_id", "modifiable_type", "created_at", "updated_at", "currency", "fun"];
-  const account_versions_keys_str = account_versions_keys.join(", ");
   const [result1, metadata1] = await warehouseDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE modifiable_id = ${accountVersion.modifiable_id} AND modifiable_type = ${accountVersion.modifiable_type};`);
   // Deprecated: debug (20240220 - tzuhan)
   console.log(`convertTrade result1`, result1)
-  const accountVersions = result1 as AccountVersion[]
+  const accountVersions = result1 as AccountVersion[];
   let existedTidebitEvent = tidebitEvents?.find((tidebitEvent) =>
     JSON.parse(tidebitEvent.account_version_ids).includes(accountVersion.id)
   );
   if (!existedTidebitEvent) {
-    const events_keys = ["id", "event_code", "type", "details", "occurred_at", "created_at", "account_version_ids"];
-    const events_keys_str = events_keys.join(", ");
     let [result2, metadata2] = await warehouseDB.query(`SELECT ${events_keys_str} FROM accounting_events WHERE account_version_ids = "[${accountVersions.sort((a, b) => +a.id - +b.id).map(accV => accV.id).join(',')}]" LIMIT 1;`);
     // Deprecated: debug (20240220 - tzuhan)
     console.log(`convertTrade result2`, result2)
     existedTidebitEvent = result2[0] as TideBitEvent;
   }
   if (existedTidebitEvent) return null;
-  const trades_keys = ["id", "bid", "ask", "currency", "price", "volume", "origin_volume", "state", "done_at", "type", "member_id", "created_at", "updated_at", "sn", "source", "ord_type", "locked", "origin_locked", "funds_received", "trades_count"];
-  const trades_keys_str = trades_keys.join(", ");
   const [result3, metadata3] = await warehouseDB.query(`SELECT ${trades_keys_str} FROM trades WHERE id = ${accountVersion.modifiable_id} LIMIT 1;`);
   // Deprecated: debug (20240220 - tzuhan)
   console.log(`convertOrder result3`, result3)
   const trade = result3[0] as Trade;
-  const orders_keys = ["id", "bid", "ask", "currency", "price", "volume", "origin_volume", "state", "done_at", "type", "member_id", "created_at", "updated_at", "sn", "source", "ord_type", "locked", "origin_locked", "funds_received", "trades_count"];
-  const orders_keys_str = orders_keys.join(", ");
   const [result4, metadata4] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.ask_id} LIMIT 1;`);
   // Deprecated: debug (20240220 - tzuhan)
   console.log(`convertOrder result4`, result4)
@@ -364,14 +367,10 @@ async function convertOrderFullfilled(
   accountVersion: AccountVersion
 ): Promise<TideBitEvent> {
   let currency1: string, currency2: string, order: Order, tidebitEventCode: string, tidebitEvnet: TideBitEvent;
-  const trades_keys = ["id", "bid", "ask", "currency", "price", "volume", "origin_volume", "state", "done_at", "type", "member_id", "created_at", "updated_at", "sn", "source", "ord_type", "locked", "origin_locked", "funds_received", "trades_count"];
-  const trades_keys_str = trades_keys.join(", ");
   const [result1, metadata1] = await warehouseDB.query(`SELECT ${trades_keys_str} FROM trades WHERE id = ${accountVersion.modifiable_id} LIMIT 1;`);
   // Deprecated: debug (20240220 - tzuhan)
   console.log(`convertOrder result1`, result1)
   const trade = result1[0] as Trade;
-  const orders_keys = ["id", "bid", "ask", "currency", "price", "volume", "origin_volume", "state", "done_at", "type", "member_id", "created_at", "updated_at", "sn", "source", "ord_type", "locked", "origin_locked", "funds_received", "trades_count"];
-  const orders_keys_str = orders_keys.join(", ");
   if (accountVersion.member_id === trade.ask_member_id) {
     const [result2, metadata2] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.ask_id} LIMIT 1;`);
     // Deprecated: debug (20240220 - tzuhan)
@@ -444,8 +443,6 @@ async function doJob(job: Job) {
     const count = job.count;
 
     // step1: read job status from warehouse
-    const jobs_keys = ["id", "table_name", "sync_id", "parsed_id", "created_at", "updated_at"];
-    const jobs_keys_str = jobs_keys.join(", ");
     const step1Query = `SELECT ${jobs_keys_str} FROM jobs WHERE table_name = '${table_name}';`;
     const [jobStatus, jobStatusMetadata] = await warehouseDB.query(step1Query);
     const jobStartId: number = (jobStatus[0] as { parsed_id: number })?.parsed_id || 0;
@@ -457,8 +454,6 @@ async function doJob(job: Job) {
     const endId: number = startId + count;
 
     // step2: read data from source
-    const account_versions_keys = ["id", "member_id", "account_id", "reason", "balance", "locked", "fee", "amount", "modifiable_id", "modifiable_type", "created_at", "updated_at", "currency", "fun"];
-    const account_versions_keys_str = account_versions_keys.join(", ");
     const [results, metadata] = await warehouseDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE id > ${startId} AND id <= ${endId};`);
 
     // step3: convert account version to TideBit event
