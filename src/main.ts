@@ -6,15 +6,50 @@ const WAREHOUSE_DATABASE_URL = process.env.WAREHOUSE_DATABASE_URL as string;
 const sourceDB = new Sequelize(SOURCE_DATABASE_URL, { logging: false });
 const warehouseDB = new Sequelize(WAREHOUSE_DATABASE_URL, { logging: false });
 
-type Job = {
-  table_name: string;
+type SyncTable =
+  | 'account_versions'
+  | 'referral_commissions'
+  | 'orders'
+  | 'trades';
+
+interface Job {
+  table_name: SyncTable;
   count: number;
+  keys: string[];
+  data_source_keys: string[];
 }
 
-async function doJob(job: Job) {
+const jobsConfig: Record<SyncTable, Job> = {
+  'account_versions': {
+    table_name: 'account_versions',
+    count: 10000,
+    keys: ['id', 'member_id', 'account_id', 'reason', 'balance', 'locked', 'fee', 'amount', 'modifiable_id', 'modifiable_type', 'created_at', 'updated_at', 'currency', 'fun'],
+    data_source_keys: ['id', 'member_id', 'account_id', 'reason', 'balance', 'locked', 'fee', 'amount', 'modifiable_id', 'modifiable_type', 'created_at', 'updated_at', 'currency', 'fun']
+  },
+  'referral_commissions': {
+    table_name: 'referral_commissions',
+    count: 10000,
+    keys: ['id', 'referred_by_member_id', 'trade_member_id', 'market', 'currency', 'amount', 'state', 'created_at', 'deposited_at'],
+    data_source_keys: ['id', 'referred_by_member_id', 'trade_member_id', 'voucher_id', 'applied_plan_id', 'applied_policy_id', 'trend', 'market', 'currency', 'ref_gross_fee', 'ref_net_fee', 'amount', 'state', 'deposited_at', 'created_at', 'updated_at'],
+  },
+  'orders': {
+    table_name: 'orders',
+    count: 10000,
+    keys: ['id', 'ask', 'bid', 'price', 'origin_volume', 'type', 'member_id', 'created_at', 'updated_at'],
+    data_source_keys: ['id', 'ask', 'bid', 'currency' ,'price', 'volume', 'origin_volume', 'state', 'done_at', 'type', 'member_id', 'created_at', 'updated_at', 'sn', 'source', 'ord_type', 'locked', 'origin_locked', 'funds_received', 'trades_count'],
+  },
+  'trades': {
+    table_name: 'trades',
+    count: 10000,
+    keys: ['id', 'currency', 'ask_id', 'bid_id', 'ask_member_id', 'bid_member_id', 'created_at'],
+    data_source_keys: ['id', 'price', 'volume', 'ask_id', 'trend', 'currency', 'bid_id', 'created_at', 'updated_at', 'ask_member_id', 'bid_member_id', 'funds', 'trade_fk'],
+  }
+};
+
+async function doJob(jobConfig: Job) {
   try {
-    const table_name = job.table_name;
-    const count = job.count;
+    const table_name = jobConfig.table_name;
+    const count = jobConfig.count;
 
     // step1: read job status from warehouse
     const jobs_keys = ['id', 'table_name', 'sync_id', 'parsed_id', 'created_at', 'updated_at'];
@@ -24,22 +59,38 @@ async function doJob(job: Job) {
     const jobStartId: number = (jobStatus[0] as { sync_id: number })?.sync_id || 0;
 
     // step1.1: check latest id from warehouse
-    const [latestIdResults, latestIdMetadata] = await warehouseDB.query(`SELECT MAX(id) as id FROM account_versions;`);
+    const [latestIdResults, latestIdMetadata] = await warehouseDB.query(
+      `SELECT MAX(id) as id FROM ${jobConfig.table_name};`
+    );
     const latestId: number = (latestIdResults[0] as { id: number })?.id || 0;
     const startId: number = latestId > jobStartId ? latestId : jobStartId;
     const endId: number = startId + count;
 
     // step2: read data from source
-    const account_versions_keys = ['id', 'member_id', 'account_id', 'reason', 'balance', 'locked', 'fee', 'amount', 'modifiable_id', 'modifiable_type', 'created_at', 'updated_at', 'currency', 'fun'];
-    const account_versions_keys_str = account_versions_keys.join(', ');
-    const [results, metadata] = await sourceDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE id > ${startId} AND id <= ${endId};`);
+    const data_source_keys = jobConfig.data_source_keys;
+    const data_source_keys_str = data_source_keys.join(', ');
+    const [results, metadata] = await sourceDB.query(
+      `SELECT ${data_source_keys_str} FROM ${table_name} WHERE id > ${startId} AND id <= ${endId};`
+    );
 
     // step3: write data to warehouse
-    if(results.length > 0) {
+    if (results.length > 0) {
       const step3Values = results.map((result: any) => {
-        return `(${result.id}, ${result.member_id}, ${result.account_id}, ${result.reason}, ${result.balance}, ${result.locked}, ${result.fee}, ${result.amount}, ${result.modifiable_id}, '${result.modifiable_type}', '${result.created_at.toISOString()}', '${result.updated_at.toISOString()}', ${result.currency}, ${result.fun})`;
+        const values = jobConfig.keys.map(key => {
+          const value = result[key];
+          if (typeof value === 'string') {
+            return `'${value}'`;
+          } else if (value instanceof Date) {
+            return `'${value.toISOString()}'`;
+          } else if (value === null || value === undefined) {
+            return 'NULL';
+          } else {
+            return value;
+          }
+        });
+        return `(${values.join(', ')})`;
       });
-      const step3Query = `INSERT INTO account_versions (id, member_id, account_id, reason, balance, locked, fee, amount, modifiable_id, modifiable_type, created_at, updated_at, currency, fun) VALUES ${step3Values};`;
+      const step3Query = `INSERT INTO ${table_name} (${jobConfig.keys.join(', ')}) VALUES ${step3Values};`;
       const [step3Results] = await warehouseDB.query(step3Query);
     }
 
@@ -66,15 +117,12 @@ async function sleep(ms: number = 500) {
 }
 
 async function syncDB() {
-  const job:Job = {
-    table_name: 'account_versions',
-    count: 10000
-  };
-
-  let keepGo = await doJob(job);
-  while (keepGo)  {
-    await sleep();
-    keepGo = await doJob(job);
+  for (const jobType of Object.values(jobsConfig)) {
+    let keepGo = true;
+    while (keepGo) {
+      keepGo = await doJob(jobType);
+      await sleep();
+    }
   }
 
   sourceDB.close();

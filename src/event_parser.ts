@@ -77,7 +77,7 @@ interface Order {
   type: string,
   member_id: number,
   created_at: Date,
-  // updated_at: Date,
+  updated_at: Date,
   // sn?: string,
   // source: string,
   // ord_type: string,
@@ -94,8 +94,8 @@ interface Trade {
   ask_id: number,
   bid_id: number,
   // trend: string,
-  // currency: number,
-  // created_at: Date,
+  currency: number,
+  created_at: Date,
   // updated_at: Date,
   ask_member_id: number,
   bid_member_id: number,
@@ -106,7 +106,7 @@ interface Trade {
 interface ReferralCommision {
   id: number,
   referred_by_member_id: number,
-  // trade_member_id: number,
+  trade_member_id: number,
   // voucher_id?: number,
   // applied_plan_id?: number,
   // applied_policy_id?: number,
@@ -118,7 +118,7 @@ interface ReferralCommision {
   amount: number,
   state: string,
   deposited_at?: Date,
-  // created_at: Date,
+  created_at: Date,
   // updated_at: Date,
 }
 
