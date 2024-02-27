@@ -97,3 +97,37 @@ model reports {
   data         Json
   created_at   Int       @default(0)
 }
+
+model referral_commissions {
+  id                       Int       @id @default(autoincrement())
+  referred_by_member_id    Int?
+  trade_member_id          Int?
+  market                   Int?
+  currency                 Int?
+  amount                   Decimal?
+  state                    String?
+  created_at               DateTime?  @default(now())
+  deposited_at             DateTime?  @default(now())
+}
+
+model orders {
+  id                  Int       @id @default(autoincrement())
+  ask                 Int
+  bid                 Int
+  price               Decimal?
+  origin_volume       Decimal?
+  type                String?
+  member_id           Int
+  created_at          Int       @default(now())
+  updated_at          Int       @default(now())
+}
+
+model trades {
+  id                  Int       @id @default(autoincrement())
+  currency            Int
+  ask_id              Int
+  bid_id              Int
+  ask_member_id       Int
+  bid_member_id       Int
+  created_at          Int       @default(now())
+}

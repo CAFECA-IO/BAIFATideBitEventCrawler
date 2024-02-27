@@ -136,3 +136,6 @@ pnpm-lock.yaml
 
 # reports
 reports/
+
+# private
+private/
