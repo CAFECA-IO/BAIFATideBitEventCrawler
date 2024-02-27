@@ -437,10 +437,10 @@ async function eventParser(
   }
 }
 
-async function doJob(job: Job) {
+async function doJob() {
   try {
-    const table_name = job.table_name;
-    const count = job.count;
+    const table_name = 'account_versions';
+    const count = 10000;
 
     // step1: read job status from warehouse
     const step1Query = `SELECT ${jobs_keys_str} FROM jobs WHERE table_name = '${table_name}';`;
@@ -500,19 +500,14 @@ async function sleep(ms: number = 500) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function syncDB() {
-  const job: Job = {
-    table_name: "account_versions",
-    count: 10000,
-  };
-
-  let keepGo = await doJob(job);
+async function parser() {
+  let keepGo = await doJob();
   while (keepGo) {
     await sleep();
-    keepGo = await doJob(job);
+    keepGo = await doJob();
   }
 
   warehouseDB.close();
   await sleep(3600000);
 }
-syncDB();
+// parser();
