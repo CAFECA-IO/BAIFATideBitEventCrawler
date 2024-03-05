@@ -1,5 +1,10 @@
 import { Sequelize } from "sequelize";
 import "dotenv/config";
+import { TideBitEvent } from "./interfaces/i_tidebit_event";
+import { AccountVersion } from "./interfaces/i_account_version";
+import { ReferralCommision } from "./interfaces/i_referral_commission";
+import { Order } from "./interfaces/i_order";
+import { Trade } from "./interfaces/i_trade";
 
 const WAREHOUSE_DATABASE_URL = process.env.WAREHOUSE_DATABASE_URL as string;
 const warehouseDB = new Sequelize(WAREHOUSE_DATABASE_URL, { logging: false });
@@ -32,95 +37,6 @@ const trades_keys_str = trades_keys.join(", ");
 const jobs_keys = ["id", "table_name", "sync_id", "parsed_id", "created_at", "updated_at"];
 const jobs_keys_str = jobs_keys.join(", ");
 
-type Job = {
-  table_name: string;
-  count: number;
-};
-
-interface AccountVersion {
-  id: number;
-  member_id: number;
-  account_id: number;
-  reason: number;
-  balance: number;
-  locked: number;
-  fee: number;
-  amount: number;
-  modifiable_id: number;
-  modifiable_type: string;
-  created_at: Date;
-  updated_at: Date;
-  currency: number;
-  fun: number;
-};
-
-interface TideBitEvent {
-  id?: number;
-  event_code: string;
-  type: string;
-  details: string;
-  occurred_at: number;
-  created_at: number;
-  account_version_ids: string;
-};
-
-interface Order {
-  id: number,
-  bid: number,
-  ask: number,
-  // currency: number,
-  price: number,
-  // volume: number,
-  origin_volume: number,
-  // state: number,
-  // done_at: Date,
-  type: string,
-  member_id: number,
-  created_at: Date,
-  updated_at: Date,
-  // sn?: string,
-  // source: string,
-  // ord_type: string,
-  // locked: number,
-  // origin_locked: number,
-  // funds_received: number,
-  // trades_count: number,
-}
-
-interface Trade {
-  id: number,
-  // price: number,
-  // volume: number,
-  ask_id: number,
-  bid_id: number,
-  // trend: string,
-  currency: number,
-  created_at: Date,
-  // updated_at: Date,
-  ask_member_id: number,
-  bid_member_id: number,
-  // funds: number,
-  // trade_fk: number
-}
-
-interface ReferralCommision {
-  id: number,
-  referred_by_member_id: number,
-  trade_member_id: number,
-  // voucher_id?: number,
-  // applied_plan_id?: number,
-  // applied_policy_id?: number,
-  // trend: string,
-  market: number,
-  currency: number,
-  // ref_gross_fee: number,
-  // ref_net_fee: number,
-  amount: number,
-  state: string,
-  deposited_at?: Date,
-  created_at: Date,
-  // updated_at: Date,
-}
 
 async function convertDeposit(accountVersion: AccountVersion): Promise<TideBitEvent> {
   const currency = currencyMap[accountVersion.currency].code.toUpperCase();
@@ -458,9 +374,9 @@ async function doJob() {
     const [results, metadata] = await warehouseDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE id > ${startId} AND id <= ${endId};`, { transaction: t });
 
     // step3: convert account version to TideBit event
-    const tidebitEvents = [];
+    const tidebitEvents: TideBitEvent[] = [];
     for (const accountVersion of results) {
-      const tidebitEvent = await eventParser(accountVersion as AccountVersion, [...tidebitEvents]); 
+      const tidebitEvent = await eventParser(accountVersion as AccountVersion, [...tidebitEvents]);
       if (!!tidebitEvent) tidebitEvents.push(tidebitEvent);
     }
     // step4: write data to warehouse
@@ -498,7 +414,7 @@ async function sleep(ms: number = 500) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function parser() {
+export async function parser() {
   let keepGo = await doJob();
   while (keepGo) {
     await sleep();
@@ -509,4 +425,3 @@ async function parser() {
   await sleep(3600000);
 }
 
-parser();
