@@ -47,6 +47,7 @@ const jobsConfig: Record<SyncTable, Job> = {
 };
 
 async function doJob(jobConfig: Job) {
+  const t = await warehouseDB.transaction();
   try {
     const table_name = jobConfig.table_name;
     const count = jobConfig.count;
@@ -55,12 +56,12 @@ async function doJob(jobConfig: Job) {
     const jobs_keys = ['id', 'table_name', 'sync_id', 'parsed_id', 'created_at', 'updated_at'];
     const jobs_keys_str = jobs_keys.join(', ');
     const step1Query = `SELECT ${jobs_keys_str} FROM jobs WHERE table_name = '${table_name}';`;
-    const [jobStatus, jobStatusMetadata] = await warehouseDB.query(step1Query);
+    const [jobStatus, jobStatusMetadata] = await warehouseDB.query(step1Query, { transaction: t });
     const jobStartId: number = (jobStatus[0] as { sync_id: number })?.sync_id || 0;
 
     // step1.1: check latest id from warehouse
     const [latestIdResults, latestIdMetadata] = await warehouseDB.query(
-      `SELECT MAX(id) as id FROM ${jobConfig.table_name};`
+      `SELECT MAX(id) as id FROM ${jobConfig.table_name};`, { transaction: t }
     );
     const latestId: number = (latestIdResults[0] as { id: number })?.id || 0;
     const startId: number = latestId > jobStartId ? latestId : jobStartId;
@@ -70,7 +71,7 @@ async function doJob(jobConfig: Job) {
     const data_source_keys = jobConfig.data_source_keys;
     const data_source_keys_str = data_source_keys.join(', ');
     const [results, metadata] = await sourceDB.query(
-      `SELECT ${data_source_keys_str} FROM ${table_name} WHERE id > ${startId} AND id <= ${endId};`
+      `SELECT ${data_source_keys_str} FROM ${table_name} WHERE id > ${startId} AND id <= ${endId};`, { transaction: t }
     );
 
     // step3: write data to warehouse
@@ -91,7 +92,7 @@ async function doJob(jobConfig: Job) {
         return `(${values.join(', ')})`;
       });
       const step3Query = `INSERT INTO ${table_name} (${jobConfig.keys.join(', ')}) VALUES ${step3Values};`;
-      const [step3Results] = await warehouseDB.query(step3Query);
+      const [step3Results] = await warehouseDB.query(step3Query, { transaction: t });
     }
 
     // step4: update or insert job status
@@ -99,14 +100,16 @@ async function doJob(jobConfig: Job) {
     const currentEndId: number = keepGo ? (results[results.length - 1] as { id: number })?.id : startId;
     const unix_timestamp = Math.round((new Date()).getTime() / 1000);
     const step4Query = `INSERT INTO jobs (table_name, sync_id, parsed_id, created_at, updated_at) VALUES ('${table_name}', ${currentEndId}, 0, ${unix_timestamp}, ${unix_timestamp}) ON CONFLICT(table_name) DO UPDATE SET sync_id = ${currentEndId}, updated_at = ${unix_timestamp};`;
-    const [step4Results] = await warehouseDB.query(step4Query);
+    const [step4Results] = await warehouseDB.query(step4Query, { transaction: t });
 
+    await t.commit(); 
     // step5: return if continue or not
     const currentCount = results.length;
     const time = new Date().toTimeString().split(' ')[0];
     console.log(`synced ${startId} - ${endId} (${currentCount} records) at ${time}`);
     return keepGo;
   } catch (error) {
+    await t.rollback();
     console.error(error);
     return false;
   }

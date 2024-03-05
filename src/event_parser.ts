@@ -408,7 +408,7 @@ async function convertOrderFullfilled(
 
 async function eventParser(
   accountVersion: AccountVersion,
-  tidebitEvents: TideBitEvent[]
+  tidebitEvents: TideBitEvent[],
 ): Promise<TideBitEvent | null> {
   switch (accountVersion.reason) {
     case REASON.DEPOSIT:
@@ -438,30 +438,29 @@ async function eventParser(
 }
 
 async function doJob() {
+  const t = await warehouseDB.transaction();
   try {
     const table_name = 'account_versions';
     const count = 10000;
 
     // step1: read job status from warehouse
     const step1Query = `SELECT ${jobs_keys_str} FROM jobs WHERE table_name = '${table_name}';`;
-    const [jobStatus, jobStatusMetadata] = await warehouseDB.query(step1Query);
+    const [jobStatus, jobStatusMetadata] = await warehouseDB.query(step1Query, { transaction: t });
     const jobStartId: number = (jobStatus[0] as { parsed_id: number })?.parsed_id || 0;
 
     // step1.1: check latest id from warehouse
-    const [latestIdResults, latestIdMetadata] = await warehouseDB.query(`SELECT MAX(id) as id FROM account_versions;`);
+    const [latestIdResults, latestIdMetadata] = await warehouseDB.query(`SELECT MAX(id) as id FROM account_versions;`, { transaction: t });
     const latestId: number = (latestIdResults[0] as { id: number })?.id || 0;
     const startId: number = latestId > jobStartId ? latestId : jobStartId;
     const endId: number = startId + count;
 
     // step2: read data from source
-    const [results, metadata] = await warehouseDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE id > ${startId} AND id <= ${endId};`);
+    const [results, metadata] = await warehouseDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE id > ${startId} AND id <= ${endId};`, { transaction: t });
 
     // step3: convert account version to TideBit event
     const tidebitEvents = [];
     for (const accountVersion of results) {
-      const tidebitEvent = await eventParser(accountVersion as AccountVersion, [
-        ...tidebitEvents,
-      ]);
+      const tidebitEvent = await eventParser(accountVersion as AccountVersion, [...tidebitEvents]); 
       if (!!tidebitEvent) tidebitEvents.push(tidebitEvent);
     }
     // step4: write data to warehouse
@@ -469,32 +468,31 @@ async function doJob() {
       const step4Values = tidebitEvents.map((result: any) => {
         return `(${result.event_code}, ${result.type}, ${result.details}, ${result.occurred_at}, ${result.created_at}, ${result.account_version_ids})`;
       });
-      const step4Query = `INSERT INTO accounting_events (event_code, type, details, occurred_at, created_at, account_version_ids) VALUES ${step4Values};`;
-      const [step4Results] = await warehouseDB.query(step4Query);
+      const step4Query = `INSERT INTO accounting_events (event_code, type, details, occurred_at, created_at, account_version_ids) VALUES ${step4Values.join(',')};`;
+      const [step4Results] = await warehouseDB.query(step4Query, { transaction: t });
     }
 
     // step5: update or insert job status
     const keepGo = results.length > 0;
-    const currentEndId: number = keepGo
-      ? (results[results.length - 1] as { id: number })?.id
-      : startId;
+    const currentEndId: number = keepGo ? (results[results.length - 1] as { id: number })?.id : startId;
     const unix_timestamp = Math.round(new Date().getTime() / 1000);
-    const step5Query = `INSERT INTO jobs (table_name, sync_id, parsed_id, created_at, updated_at) VALUES ('${table_name}', ${(jobStatus[0] as { sync_id: number })?.sync_id || 0
-      }, ${currentEndId}, ${unix_timestamp}, ${unix_timestamp}) ON CONFLICT(table_name) DO UPDATE SET parsed_id = ${currentEndId}, updated_at = ${unix_timestamp};`;
-    const [step5Results] = await warehouseDB.query(step5Query);
+    const step5Query = `INSERT INTO jobs (table_name, sync_id, parsed_id, created_at, updated_at) VALUES ('${table_name}', ${(jobStatus[0] as { sync_id: number })?.sync_id || 0}, ${currentEndId}, ${unix_timestamp}, ${unix_timestamp}) ON CONFLICT(table_name) DO UPDATE SET parsed_id = ${currentEndId}, updated_at = ${unix_timestamp};`;
+    const [step5Results] = await warehouseDB.query(step5Query, { transaction: t });
+
+    await t.commit(); // Commit the transaction
 
     // step5: return if continue or not
     const currentCount = results.length;
     const time = new Date().toTimeString().split(" ")[0];
-    console.log(
-      `parsed ${startId} - ${endId} (${currentCount} records) at ${time}`
-    );
+    console.log(`parsed ${startId} - ${endId} (${currentCount} records) at ${time}`);
     return keepGo;
   } catch (error) {
+    await t.rollback(); // Roll back the transaction in case of error
     console.error(error);
     return false;
   }
 }
+
 
 async function sleep(ms: number = 500) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -510,4 +508,5 @@ async function parser() {
   warehouseDB.close();
   await sleep(3600000);
 }
-// parser();
+
+parser();
