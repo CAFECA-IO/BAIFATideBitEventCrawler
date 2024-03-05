@@ -1,6 +1,6 @@
 import express from 'express';
 import 'dotenv/config';
-import { parser } from './event_parser';
+// import { parser } from './event_parser';
 import { syncDB } from './sync_tidebit_db';
 
 export const app = express();
@@ -10,5 +10,5 @@ app.listen(port, () => {
     console.log(`Server running on port ${port}`);
 });
 
-parser();
+// parser();
 // syncDB();

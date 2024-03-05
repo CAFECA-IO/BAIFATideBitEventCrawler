@@ -448,7 +448,7 @@ async function doJob() {
     // step1.1: check latest id from warehouse
     const [latestIdResults, latestIdMetadata] = await warehouseDB.query(`SELECT MAX(id) as id FROM account_versions;`, { transaction: t });
     const latestId: number = (latestIdResults[0] as { id: number })?.id || 0;
-    const startId: number = latestId > jobStartId ? latestId : jobStartId;
+    const startId: number = latestId > jobStartId ? jobStartId : latestId;
     const endId: number = startId + count;
 
     // step2: read data from source
@@ -495,7 +495,7 @@ async function sleep(ms: number = 500) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function parser() {
+async function parser() {
   let keepGo = await doJob();
   while (keepGo) {
     await sleep();
@@ -506,4 +506,4 @@ export async function parser() {
   await sleep(3600000);
 }
 
-
+parser();
