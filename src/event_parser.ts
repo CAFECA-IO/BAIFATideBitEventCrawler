@@ -445,10 +445,12 @@ async function doJob() {
     const step1Query = `SELECT ${jobs_keys_str} FROM jobs WHERE table_name = '${table_name}';`;
     const [jobStatus, jobStatusMetadata] = await warehouseDB.query(step1Query);
     const jobStartId: number = (jobStatus[0] as { parsed_id: number })?.parsed_id || 0;
+    console.log(`doJob, jobStartId: ${jobStartId}`);
 
     // step1.1: check latest id from warehouse
     const [latestIdResults, latestIdMetadata] = await warehouseDB.query(`SELECT MAX(id) as id FROM account_versions;`);
     const latestId: number = (latestIdResults[0] as { id: number })?.id || 0;
+    console.log(`doJob, latestId: ${latestId}`);
     if (latestId > jobStartId) {
       const startId: number = jobStartId;
       const endId: number = startId + count;
@@ -485,6 +487,7 @@ async function doJob() {
       const time = new Date().toTimeString().split(" ")[0];
       console.log(`parsed ${startId} - ${endId} (${currentCount} records) at ${time}`);
     }
+    console.log(`doJob, keepGo: ${keepGo}`);
     return keepGo;
   } catch (error) {
     await t.rollback(); // Roll back the transaction in case of error
