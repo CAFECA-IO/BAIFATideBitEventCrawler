@@ -234,123 +234,130 @@ async function convertTrade(
   accountVersion: AccountVersion,
   tidebitEvents: TideBitEvent[]
 ): Promise<TideBitEvent | null> {
-  console.log(`convertTrade accountVersion: `, accountVersion);
-  console.log(`convertTrade tidebitEvents: `, tidebitEvents);
-  const [result1, metadata1] = await warehouseDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE modifiable_id = ${accountVersion.modifiable_id} AND modifiable_type = '${accountVersion.modifiable_type}';`);
-  const accountVersions = result1 as AccountVersion[];
-  console.log(`convertTrade accountVersions: `, accountVersions);
-  let existedTidebitEvent = tidebitEvents?.find((tidebitEvent) =>
-    JSON.parse(tidebitEvent.account_version_ids).includes(accountVersion.id)
-  );
-  if (!existedTidebitEvent) {
-    let [result2, metadata2] = await warehouseDB.query(`SELECT ${events_keys_str} FROM accounting_events WHERE account_version_ids = "[${accountVersions.sort((a, b) => +a.id - +b.id).map(accV => accV.id).join(',')}]" LIMIT 1;`);
-    existedTidebitEvent = result2[0] as TideBitEvent;
-  }
-  if (existedTidebitEvent) return null;
-  const [result3, metadata3] = await warehouseDB.query(`SELECT ${trades_keys_str} FROM trades WHERE id = ${accountVersion.modifiable_id} LIMIT 1;`);
-  const trade = result3[0] as Trade;
-  console.log(`convertTrade trade: `, trade);
-  const [result4, metadata4] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.ask_id} LIMIT 1;`);
-  const askOrder = result4[0] as Order;
-  console.log(`convertTrade askOrder: `, askOrder);
-  const [result5, metadata5] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.bid_id} LIMIT 1;`);
-  const bidOrder = result5[0] as Order;
-  console.log(`convertTrade bidOrder: `, bidOrder);
-  if (!askOrder || !bidOrder) {
-    // Deprecated: [debug] (20240229 - tzuhan)
-    console.error(
-      `[convertTrade] askOrder or bidOrder is null, accountVersion.modifiable_id:${accountVersion.modifiable_id}, accountVersions`,
-      accountVersions
+  try {
+    console.log(`convertTrade accountVersion: `, accountVersion);
+    console.log(`convertTrade tidebitEvents: `, tidebitEvents);
+    const [result1, metadata1] = await warehouseDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE modifiable_id = ${accountVersion.modifiable_id} AND modifiable_type = '${accountVersion.modifiable_type}';`);
+    const accountVersions = result1 as AccountVersion[];
+    console.log(`convertTrade accountVersions: `, accountVersions);
+    let existedTidebitEvent = tidebitEvents?.find((tidebitEvent) =>
+      JSON.parse(tidebitEvent.account_version_ids).includes(accountVersion.id)
     );
-    return null;
-  }
-  let makerOrder: Order,
-    takerOrder: Order,
-    currency1: string,
-    currency2: string,
-    makerAccountVersionSubbed: AccountVersion,
-    makerAccountVersionAdded: AccountVersion,
-    takerAccountVersionSubbed: AccountVersion,
-    takerAccountVersionAdded: AccountVersion;
-  if (
-    new Date(askOrder.created_at).getTime() >
-    new Date(bidOrder.created_at).getTime()
-  ) {
-    takerOrder = askOrder;
-    makerOrder = bidOrder;
-  } else {
-    takerOrder = bidOrder;
-    makerOrder = askOrder;
-  }
-  if (makerOrder.type === TYPE.ORDER_ASK) {
-    currency1 = currencyMap[makerOrder.ask].code.toUpperCase();
-    currency2 = currencyMap[makerOrder.bid].code.toUpperCase();
-  } else {
-    currency1 = currencyMap[makerOrder.bid].code.toUpperCase();
-    currency2 = currencyMap[makerOrder.ask].code.toUpperCase();
-  }
-  makerAccountVersionAdded = accountVersions.find(
-    (accountVersion) =>
-      accountVersion.reason === REASON.STRIKE_ADD &&
-      accountVersion.member_id === makerOrder.member_id
-  );
-  makerAccountVersionSubbed = accountVersions.find(
-    (accountVersion) =>
-      accountVersion.reason === REASON.STRIKE_SUB &&
-      accountVersion.member_id === makerOrder.member_id
-  );
-  takerAccountVersionAdded = accountVersions.find(
-    (accountVersion) =>
-      accountVersion.reason === REASON.STRIKE_ADD &&
-      accountVersion.member_id === takerOrder.member_id
-  );
-  takerAccountVersionSubbed = accountVersions.find(
-    (accountVersion) =>
-      accountVersion.reason === REASON.STRIKE_SUB &&
-      accountVersion.member_id === takerOrder.member_id
-  );
-  if (
-    !makerAccountVersionAdded ||
-    !makerAccountVersionSubbed ||
-    !takerAccountVersionAdded ||
-    !takerAccountVersionSubbed
-  ) {
-    // Deprecated: [debug] (20240229 - tzuhan)
-    console.error(
-      `[convertTrade], makerAccountVersionAdded or makerAccountVersionSubbed or takerAccountVersionAdded or takerAccountVersionSubbed is null, accountVersion.modifiable_id:${accountVersion.modifiable_id}, accountVersions`,
-      accountVersions
+    if (!existedTidebitEvent) {
+      let [result2, metadata2] = await warehouseDB.query(`SELECT ${events_keys_str} FROM accounting_events WHERE account_version_ids = "[${accountVersions.sort((a, b) => +a.id - +b.id).map(accV => accV.id).join(',')}]" LIMIT 1;`);
+      existedTidebitEvent = result2[0] as TideBitEvent;
+    }
+    if (existedTidebitEvent) return null;
+    const [result3, metadata3] = await warehouseDB.query(`SELECT ${trades_keys_str} FROM trades WHERE id = ${accountVersion.modifiable_id} LIMIT 1;`);
+    const trade = result3[0] as Trade;
+    console.log(`convertTrade trade: `, trade);
+    const [result4, metadata4] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.ask_id} LIMIT 1;`);
+    const askOrder = result4[0] as Order;
+    console.log(`convertTrade askOrder: `, askOrder);
+    const [result5, metadata5] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.bid_id} LIMIT 1;`);
+    const bidOrder = result5[0] as Order;
+    console.log(`convertTrade bidOrder: `, bidOrder);
+    if (!askOrder || !bidOrder) {
+      // Deprecated: [debug] (20240229 - tzuhan)
+      console.error(
+        `[convertTrade] askOrder or bidOrder is null, accountVersion.modifiable_id:${accountVersion.modifiable_id}, accountVersions`,
+        accountVersions
+      );
+      return null;
+    }
+    let makerOrder: Order,
+      takerOrder: Order,
+      currency1: string,
+      currency2: string,
+      makerAccountVersionSubbed: AccountVersion,
+      makerAccountVersionAdded: AccountVersion,
+      takerAccountVersionSubbed: AccountVersion,
+      takerAccountVersionAdded: AccountVersion;
+    if (
+      new Date(askOrder.created_at).getTime() >
+      new Date(bidOrder.created_at).getTime()
+    ) {
+      takerOrder = askOrder;
+      makerOrder = bidOrder;
+    } else {
+      takerOrder = bidOrder;
+      makerOrder = askOrder;
+    }
+    if (makerOrder.type === TYPE.ORDER_ASK) {
+      currency1 = currencyMap[makerOrder.ask].code.toUpperCase();
+      currency2 = currencyMap[makerOrder.bid].code.toUpperCase();
+    } else {
+      currency1 = currencyMap[makerOrder.bid].code.toUpperCase();
+      currency2 = currencyMap[makerOrder.ask].code.toUpperCase();
+    }
+    makerAccountVersionAdded = accountVersions.find(
+      (accountVersion) =>
+        accountVersion.reason === REASON.STRIKE_ADD &&
+        accountVersion.member_id === makerOrder.member_id
     );
-    return null;
+    makerAccountVersionSubbed = accountVersions.find(
+      (accountVersion) =>
+        accountVersion.reason === REASON.STRIKE_SUB &&
+        accountVersion.member_id === makerOrder.member_id
+    );
+    takerAccountVersionAdded = accountVersions.find(
+      (accountVersion) =>
+        accountVersion.reason === REASON.STRIKE_ADD &&
+        accountVersion.member_id === takerOrder.member_id
+    );
+    takerAccountVersionSubbed = accountVersions.find(
+      (accountVersion) =>
+        accountVersion.reason === REASON.STRIKE_SUB &&
+        accountVersion.member_id === takerOrder.member_id
+    );
+    if (
+      !makerAccountVersionAdded ||
+      !makerAccountVersionSubbed ||
+      !takerAccountVersionAdded ||
+      !takerAccountVersionSubbed
+    ) {
+      // Deprecated: [debug] (20240229 - tzuhan)
+      console.error(
+        `[convertTrade], makerAccountVersionAdded or makerAccountVersionSubbed or takerAccountVersionAdded or takerAccountVersionSubbed is null, accountVersion.modifiable_id:${accountVersion.modifiable_id}, accountVersions`,
+        accountVersions
+      );
+      return null;
+    }
+    const tidebitEventCode =
+      EVENT_CODE.SPOT_TRADE_MATCH[`${currency1}_${currency2}`];
+    const tidebitEvent: TideBitEvent = {
+      event_code: tidebitEventCode ?? EVENT_CODE.UNDEFINED,
+      type: EVENT_TYPE.SPOT_TRADE_MATCH,
+      details: JSON.stringify({
+        EP001: Math.abs(+makerAccountVersionSubbed.locked), // 0.101 BTC (maker)
+        EP002: Math.abs(+makerAccountVersionAdded.balance), // 2750 USDT (maker)
+        EP003: Math.abs(+takerAccountVersionSubbed.locked), // 2800 USDT (taker)
+        EP004: Math.abs(+takerAccountVersionAdded.balance), // 0.1 BTC (taker)
+        EP005: 0, //TODO: 交易時匯率 1 USDT = 1.01 USD (20240129 - tzuhan)
+        EP006: 0, //TODO: 交易時匯率 1 BTC = 25000 USD (20240129 - tzuhan)
+        EP007: takerAccountVersionAdded.fee, // 內扣手續費 0.001 BTC (taker)
+        EP008: 0, // 外扣手續費 10 USDT (taker)
+        EP009: makerAccountVersionAdded.fee, // 內扣手續費 20 USDT (maker)
+        EP010: 0, // 外扣手續費 0.002 BTC (maker)
+      }),
+      occurred_at: new Date(accountVersion.created_at).getTime(),
+      created_at: new Date().getTime(),
+      account_version_ids: JSON.stringify([
+        makerAccountVersionAdded.id,
+        makerAccountVersionSubbed.id,
+        takerAccountVersionAdded.id,
+        takerAccountVersionSubbed.id,
+      ]),
+    };
+    console.log(`convertTrade tidebitEvent: `, tidebitEvent);
+    return tidebitEvent;
   }
-  const tidebitEventCode =
-    EVENT_CODE.SPOT_TRADE_MATCH[`${currency1}_${currency2}`];
-  const tidebitEvent: TideBitEvent = {
-    event_code: tidebitEventCode ?? EVENT_CODE.UNDEFINED,
-    type: EVENT_TYPE.SPOT_TRADE_MATCH,
-    details: JSON.stringify({
-      EP001: Math.abs(+makerAccountVersionSubbed.locked), // 0.101 BTC (maker)
-      EP002: Math.abs(+makerAccountVersionAdded.balance), // 2750 USDT (maker)
-      EP003: Math.abs(+takerAccountVersionSubbed.locked), // 2800 USDT (taker)
-      EP004: Math.abs(+takerAccountVersionAdded.balance), // 0.1 BTC (taker)
-      EP005: 0, //TODO: 交易時匯率 1 USDT = 1.01 USD (20240129 - tzuhan)
-      EP006: 0, //TODO: 交易時匯率 1 BTC = 25000 USD (20240129 - tzuhan)
-      EP007: takerAccountVersionAdded.fee, // 內扣手續費 0.001 BTC (taker)
-      EP008: 0, // 外扣手續費 10 USDT (taker)
-      EP009: makerAccountVersionAdded.fee, // 內扣手續費 20 USDT (maker)
-      EP010: 0, // 外扣手續費 0.002 BTC (maker)
-    }),
-    occurred_at: new Date(accountVersion.created_at).getTime(),
-    created_at: new Date().getTime(),
-    account_version_ids: JSON.stringify([
-      makerAccountVersionAdded.id,
-      makerAccountVersionSubbed.id,
-      takerAccountVersionAdded.id,
-      takerAccountVersionSubbed.id,
-    ]),
-  };
-  console.log(`convertTrade tidebitEvent: `, tidebitEvent);
-  return tidebitEvent;
+  catch (e) {
+    console.error(`convertTrade error: `, e);
+    throw e;
+  }
 }
+
 
 async function convertOrderFullfilled(
   accountVersion: AccountVersion
