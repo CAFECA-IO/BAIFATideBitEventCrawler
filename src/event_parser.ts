@@ -242,7 +242,7 @@ async function convertTrade(
   tidebitEvents: TideBitEvent[]
 ): Promise<TideBitEvent | null> {
 
-  const [result1, metadata1] = await warehouseDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE modifiable_id = ${accountVersion.modifiable_id} AND modifiable_type = ${accountVersion.modifiable_type};`);
+  const [result1, metadata1] = await warehouseDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE modifiable_id = ${accountVersion.modifiable_id} AND modifiable_type = '${accountVersion.modifiable_type}';`);
   // Deprecated: debug (20240220 - tzuhan)
   console.log(`convertTrade result1`, result1)
   const accountVersions = result1 as AccountVersion[];
