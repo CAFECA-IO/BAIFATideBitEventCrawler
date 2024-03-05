@@ -12,7 +12,7 @@ interface Currency {
   self_transfer?: boolean;
 }
 
-const currencies: Currency[] = [
+export const currencies: Currency[] = [
   {
     id: 1,
     key: "usdollar",

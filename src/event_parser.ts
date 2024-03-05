@@ -1,5 +1,8 @@
 import { Sequelize } from "sequelize";
 import "dotenv/config";
+import { currencies } from "./constants/coins";
+import { markets } from "./constants/markets";
+import { EVENT_CODE, EVENT_TYPE, REASON, TYPE } from "./constants/constants";
 
 const WAREHOUSE_DATABASE_URL = process.env.WAREHOUSE_DATABASE_URL as string;
 const warehouseDB = new Sequelize(WAREHOUSE_DATABASE_URL, { logging: false });
@@ -31,12 +34,6 @@ const trades_keys_str = trades_keys.join(", ");
 
 const jobs_keys = ["id", "table_name", "sync_id", "parsed_id", "created_at", "updated_at"];
 const jobs_keys_str = jobs_keys.join(", ");
-
-type Job = {
-  table_name: string;
-  count: number;
-};
-
 interface AccountVersion {
   id: number;
   member_id: number;

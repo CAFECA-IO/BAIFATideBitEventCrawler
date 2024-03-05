@@ -22,7 +22,7 @@ interface Market {
   visible: boolean;
 }
 
-const markets: Market[] = [
+export const markets: Market[] = [
   {
     id: "btcusd",
     code: 1,

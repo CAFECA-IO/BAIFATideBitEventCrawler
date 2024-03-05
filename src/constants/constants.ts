@@ -1,4 +1,4 @@
-const REASON = {
+export const REASON = {
   STRIKE_FEE: 100,
   STRIKE_ADD: 110,
   STRIKE_SUB: 120,
@@ -14,11 +14,11 @@ const REASON = {
   WITHDRAW: 2000,
   WITHDRAW_FEE: 2001,
 };
-const TYPE = {
+export const TYPE = {
   ORDER_ASK: "OrderAsk",
   ORDER_BID: "OrderBid",
 };
-const EVENT_TYPE = {
+export const EVENT_TYPE = {
   DEPOSIT: "DEPOSIT",
   WITHDRAW: "WITHDRAW",
   WITHDRAW_LOCK: "WITHDRAW_LOCK",
@@ -32,7 +32,7 @@ const EVENT_TYPE = {
   SWAP: "SWAP",
   REFERRAL_COMMISSION: "REFERRAL_COMMISSION",
 };
-const EVENT_CODE = {
+export const EVENT_CODE = {
   UNDEFINED: "E99999999",
   DEPOSIT: {
     USDT: "E00010001",
@@ -138,14 +138,14 @@ const EVENT_CODE = {
     USDT_USD: "E00050012",
   },
 };
-const DEPOSIT = {
+export const DEPOSIT = {
   AMOUNT: "EP001",
   INNER_FEE: "EP002",
   OUTER_FEE: "EP003",
   TIME: "EP004",
   EXCHANGE_RATE: "EP005",
 };
-const WITHDRAW = {
+export const WITHDRAW = {
   AMOUNT: "EP001",
   INNER_FEE: "EP002",
   OUTER_FEE: "EP003",
@@ -154,7 +154,7 @@ const WITHDRAW = {
   EXCHANGE_RATE_USDT: "EP006",
   EXCHANGE_RATE_ETH: "EP007",
 };
-const WITHDRAW_LOCK = {
+export const WITHDRAW_LOCK = {
   AMOUNT: "EP001",
   INNER_FEE: "EP002",
   OUTER_FEE: "EP003",
@@ -163,7 +163,7 @@ const WITHDRAW_LOCK = {
   EXCHANGE_RATE_USDT: "EP006",
   EXCHANGE_RATE_ETH: "EP007",
 };
-const WITHDRAW_UNLOCK = {
+export const WITHDRAW_UNLOCK = {
   AMOUNT: "EP001",
   INNER_FEE: "EP002",
   OUTER_FEE: "EP003",
@@ -172,19 +172,19 @@ const WITHDRAW_UNLOCK = {
   EXCHANGE_RATE_USDT: "EP006",
   EXCHANGE_RATE_ETH: "EP007",
 };
-const SPOT_TRADE = {
+export const SPOT_TRADE = {
   TRADE1: "EP001",
   TRADE2: "EP002",
   TIME: "EP003",
   ORDER: "EP004",
 };
-const SPOT_TRADE_CANCEL = {
+export const SPOT_TRADE_CANCEL = {
   TRADE1: "EP001",
   TRADE2: "EP002",
   TIME: "EP003",
   ORDER: "EP004",
 };
-const SPOT_TRADE_MATCH = {
+export const SPOT_TRADE_MATCH = {
   MAKER_TRADE: "EP001",
   MAKER_TRADE2: "EP002",
   TAKER_TRADE: "EP003",
@@ -197,16 +197,16 @@ const SPOT_TRADE_MATCH = {
   OUTER_FEE_MAKER: "EP010",
   TIME: "EP011",
 };
-const SPOT_TRADE_FULLFILL = {
+export const SPOT_TRADE_FULLFILL = {
   UNLOCK_FUNDS: "EP001",
   TIME: "EP002",
 };
-const REFERRAL_COMMISSION = {
+export const REFERRAL_COMMISSION = {
   REFUND: "EP001",
   EXCHANGE_RATE: "EP002",
   TIME: "EP003",
 };
-const OPEN_POSITION = {
+export const OPEN_POSITION = {
   TRADE_AMOUNT: "EP001",
   INNER_FEE: "EP002",
   OUTER_FEE: "EP003",
@@ -217,7 +217,7 @@ const OPEN_POSITION = {
   STOP_LOSS_FEE: "EP008",
   TYPE: "EP009",
 };
-const CLOSE_POSITION = {
+export const CLOSE_POSITION = {
   TRADE_AMOUNT: "EP001",
   INNER_FEE: "EP002",
   OUTER_FEE: "EP003",
@@ -228,7 +228,7 @@ const CLOSE_POSITION = {
   MARGIN: "EP008",
   PnL: "EP009",
 };
-const SWAP = {
+export const SWAP = {
   TRADE_AMOUNT1: "EP001",
   TRADE_AMOUNT2: "EP002",
   INNER_FEE: "EP003",

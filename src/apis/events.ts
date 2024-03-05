@@ -1,4 +1,4 @@
-import { app } from "../server"; // Ensure this path matches your actual server file location
+import { app } from "../main"; // Ensure this path matches your actual server file location
 import { Sequelize } from "sequelize";
 import "dotenv/config";
 
