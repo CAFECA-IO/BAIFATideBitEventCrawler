@@ -231,27 +231,11 @@ async function convertOrder(
 }
 
 async function convertTrade(
-  accountVersion: AccountVersion,
-  tidebitEvents: TideBitEvent[]
+  accountVersions: AccountVersion[],
 ): Promise<TideBitEvent | null> {
   try {
-    console.log(`convertTrade accountVersion: `, accountVersion);
-    console.log(`convertTrade tidebitEvents: `, tidebitEvents);
-    const query = `SELECT ${account_versions_keys_str} FROM account_versions WHERE modifiable_id = ${accountVersion.modifiable_id} AND modifiable_type = '${accountVersion.modifiable_type}';`
-    console.log(`convertTrade query: `, query);
-    const [result1, metadata1] = await warehouseDB.query(query);
-    console.log(`convertTrade result1: `, result1);
-    const accountVersions = result1 as AccountVersion[];
     console.log(`convertTrade accountVersions: `, accountVersions);
-    let existedTidebitEvent = tidebitEvents?.find((tidebitEvent) =>
-      JSON.parse(tidebitEvent.account_version_ids).includes(accountVersion.id)
-    );
-    if (!existedTidebitEvent) {
-      let [result2, metadata2] = await warehouseDB.query(`SELECT ${events_keys_str} FROM accounting_events WHERE account_version_ids = "[${accountVersions.sort((a, b) => +a.id - +b.id).map(accV => accV.id).join(',')}]" LIMIT 1;`);
-      existedTidebitEvent = result2[0] as TideBitEvent;
-    }
-    if (existedTidebitEvent) return null;
-    const [result3, metadata3] = await warehouseDB.query(`SELECT ${trades_keys_str} FROM trades WHERE id = ${accountVersion.modifiable_id} LIMIT 1;`);
+    const [result3, metadata3] = await warehouseDB.query(`SELECT ${trades_keys_str} FROM trades WHERE id = ${accountVersions[0].modifiable_id} LIMIT 1;`);
     const trade = result3[0] as Trade;
     console.log(`convertTrade trade: `, trade);
     const [result4, metadata4] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.ask_id} LIMIT 1;`);
@@ -263,7 +247,7 @@ async function convertTrade(
     if (!askOrder || !bidOrder) {
       // Deprecated: [debug] (20240229 - tzuhan)
       console.error(
-        `[convertTrade] askOrder or bidOrder is null, accountVersion.modifiable_id:${accountVersion.modifiable_id}, accountVersions`,
+        `[convertTrade] askOrder or bidOrder is null, accountVersion.modifiable_id:${accountVersions[0].modifiable_id}, accountVersions`,
         accountVersions
       );
       return null;
@@ -321,7 +305,7 @@ async function convertTrade(
     ) {
       // Deprecated: [debug] (20240229 - tzuhan)
       console.error(
-        `[convertTrade], makerAccountVersionAdded or makerAccountVersionSubbed or takerAccountVersionAdded or takerAccountVersionSubbed is null, accountVersion.modifiable_id:${accountVersion.modifiable_id}, accountVersions`,
+        `[convertTrade], makerAccountVersionAdded or makerAccountVersionSubbed or takerAccountVersionAdded or takerAccountVersionSubbed is null, accountVersion.modifiable_id:${accountVersions[0].modifiable_id}, accountVersions`,
         accountVersions
       );
       return null;
@@ -343,7 +327,7 @@ async function convertTrade(
         EP009: makerAccountVersionAdded.fee, // 內扣手續費 20 USDT (maker)
         EP010: 0, // 外扣手續費 0.002 BTC (maker)
       }),
-      occurred_at: new Date(accountVersion.created_at).getTime(),
+      occurred_at: new Date(accountVersions[0].created_at).getTime(),
       created_at: new Date().getTime(),
       account_version_ids: JSON.stringify([
         makerAccountVersionAdded.id,
@@ -424,10 +408,10 @@ async function eventParser(
       return convertOrder(null, accountVersion);
     case REASON.ORDER_CANCEL:
       return convertOrder("CANCEL", accountVersion);
-    case REASON.STRIKE_ADD:
-      // case REASON.STRIKE_SUB: // Info: 只要有 add 就好有對應的 sub，降低耗能 (20240201 - tzuhan)
-      // case REASON.STRIKE_UNLOCK:// Info: 不知道為什麼會有 STRIKE_UNLOCK 的 accountVersion 跟 ORDER_FULLFILLED 的區別是？ 遍歷目前的 account_versions 沒有找到對應 reason(20240201 - tzuhan)
-      return convertTrade(accountVersion, tidebitEvents);
+    // case REASON.STRIKE_ADD:
+    // case REASON.STRIKE_SUB: // Info: 只要有 add 就好有對應的 sub，降低耗能 (20240201 - tzuhan)
+    // case REASON.STRIKE_UNLOCK:// Info: 不知道為什麼會有 STRIKE_UNLOCK 的 accountVersion 跟 ORDER_FULLFILLED 的區別是？ 遍歷目前的 account_versions 沒有找到對應 reason(20240201 - tzuhan)
+    // return convertTrade(accountVersion, tidebitEvents);
     case REASON.ORDER_FULLFILLED:
       return convertOrderFullfilled(accountVersion);
     default:
@@ -437,6 +421,7 @@ async function eventParser(
 
 async function doJob() {
   const t = await warehouseDB.transaction();
+  let tidebitEvent: TideBitEvent, currentEndId: number;
   try {
     let keepGo = false;
     const table_name = 'account_versions';
@@ -458,15 +443,34 @@ async function doJob() {
 
       // step2: read data from source
       const [results, metadata] = await warehouseDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE id > ${startId} AND id <= ${endId};`);
-
+      const accountVersions = results as AccountVersion[];
       // step3: convert account version to TideBit event
       const tidebitEvents = [];
       console.log(`doJob results: [${results.length}]`)
-      for (const accountVersion of results) {
+      for (const accountVersion of accountVersions) {
         console.log(`doJob accountVersion: `, accountVersion)
-        const tidebitEvent = await eventParser(accountVersion as AccountVersion, [...tidebitEvents]);
-        console.log(`doJob tidebitEvent: `, tidebitEvent)
-        if (!!tidebitEvent) tidebitEvents.push(tidebitEvent);
+        if (accountVersion.modifiable_type === 'Trade') {
+          const existedTidebitEvent = tidebitEvents?.find((tidebitEvent) =>
+            tidebitEvent.type === EVENT_TYPE.SPOT_TRADE_MATCH && JSON.parse(tidebitEvent.account_version_ids).includes(accountVersion.id)
+          );
+          if (existedTidebitEvent) continue;
+          const relatedAccountVersions = accountVersions.filter(av =>
+            av.modifiable_id === accountVersion.modifiable_id && av.modifiable_type === 'Trade'
+          );
+          tidebitEvent = await convertTrade(relatedAccountVersions);
+          if (tidebitEvent) {
+            currentEndId = Math.max(...relatedAccountVersions.map(av => av.id));
+            tidebitEvents.push(tidebitEvent);
+          }else {
+            keepGo = true;
+            break;
+          }
+        } else {
+          tidebitEvent = await eventParser(accountVersion as AccountVersion, [...tidebitEvents]);
+          currentEndId = accountVersion.id;
+          console.log(`doJob tidebitEvent: `, tidebitEvent)
+          if (!!tidebitEvent) tidebitEvents.push(tidebitEvent);
+        }
       }
       // step4: write data to warehouse
       if (tidebitEvents.length > 0) {
@@ -478,11 +482,10 @@ async function doJob() {
       }
 
       // step5: update or insert job status
-      keepGo = endId < latestId;
-      const currentEndId: number = keepGo ? (results[results.length - 1] as { id: number })?.id : startId;
+      keepGo = currentEndId < latestId;
       const unix_timestamp = Math.round(new Date().getTime() / 1000);
       const step5Query = `INSERT INTO jobs (table_name, sync_id, parsed_id, created_at, updated_at) VALUES ('${table_name}', ${(jobStatus[0] as { sync_id: number })?.sync_id || 0}, ${currentEndId}, ${unix_timestamp}, ${unix_timestamp}) ON CONFLICT(table_name) DO UPDATE SET parsed_id = ${currentEndId}, updated_at = ${unix_timestamp};`;
-      const [step5Results] = await warehouseDB.query(step5Query, { transaction: t });
+      // const [step5Results] = await warehouseDB.query(step5Query, { transaction: t });
 
       await t.commit(); // Commit the transaction
 
