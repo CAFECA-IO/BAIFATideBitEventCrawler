@@ -29,7 +29,7 @@ const referral_commissions_keys_str = referral_commissions_keys.join(", ");
 const orders_keys = ["id", "bid", "ask", "price", "origin_volume", "type", "member_id", "created_at"];
 const orders_keys_str = orders_keys.join(", ");
 
-const trades_keys = ["id", "ask_id", "bid_id", "ask_member_id", "bid_member_id", "updated_at"];
+const trades_keys = ["id", "ask_id", "bid_id", "ask_member_id", "bid_member_id", "created_at"];
 const trades_keys_str = trades_keys.join(", ");
 
 const jobs_keys = ["id", "table_name", "sync_id", "parsed_id", "created_at", "updated_at"];
