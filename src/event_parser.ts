@@ -460,7 +460,7 @@ async function doJob() {
     // step3: convert account version to TideBit event
     const tidebitEvents = [];
     for (const accountVersion of results) {
-      const tidebitEvent = await eventParser(accountVersion as AccountVersion, [...tidebitEvents]); 
+      const tidebitEvent = await eventParser(accountVersion as AccountVersion, [...tidebitEvents]);
       if (!!tidebitEvent) tidebitEvents.push(tidebitEvent);
     }
     // step4: write data to warehouse
@@ -498,7 +498,7 @@ async function sleep(ms: number = 500) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function parser() {
+export async function parser() {
   let keepGo = await doJob();
   while (keepGo) {
     await sleep();
@@ -509,4 +509,4 @@ async function parser() {
   await sleep(3600000);
 }
 
-parser();
+
