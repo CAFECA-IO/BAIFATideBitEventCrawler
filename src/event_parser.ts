@@ -122,12 +122,9 @@ interface ReferralCommision {
 async function convertDeposit(accountVersion: AccountVersion): Promise<TideBitEvent> {
   const currency = currencyMap[accountVersion.currency].code.toUpperCase();
   let tidebitEventCode: string = EVENT_CODE.DEPOSIT[currency];
-  console.log(`convertDeposit accountVersion: `, accountVersion)
   const query = `SELECT ${referral_commissions_keys_str} FROM referral_commissions WHERE state = 'deposited' AND referred_by_member_id = ? AND currency = ? AND amount = ? AND deposited_at <= ? LIMIT 1;`;
   const values = [accountVersion.member_id, accountVersion.currency, accountVersion.balance, accountVersion.created_at];
   const [result, metadata] = await warehouseDB.query(query, { replacements: values });
-  // Deprecated: debug (20240220 - tzuhan)
-  console.log(`convertDeposit result`, result)
   const referralCommision = result[0] as ReferralCommision;
   let tidebitEvnet: TideBitEvent;
   if (referralCommision) {
@@ -175,8 +172,6 @@ async function convertWithdraw(
   accountVersion: AccountVersion
 ): Promise<TideBitEvent> {
   const [result, metadata] = await warehouseDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE modifiable_id = ${accountVersion.modifiable_id} AND reason = ${REASON[`WITHDRAW_FEE${type ? `_${type}` : ""}`]} LIMIT 1;`);
-  // Deprecated: debug (20240220 - tzuhan)
-  console.log(`convertWithraw result`, result)
   const withdrawFeeAccountVeresion = result[0] as AccountVersion;
   const currency = currencyMap[accountVersion.currency].code.toUpperCase();
   const tidebitEventCode =
@@ -208,8 +203,6 @@ async function convertOrder(
   let currency1: string, currency2: string, order: Order, tidebitEventCode: string, tidebitEvnet: TideBitEvent;
   // TODO: need orders table (20240220 - tzuhan)
   const [result, metadata] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${accountVersion.modifiable_id} LIMIT 1;`);
-  // Deprecated: debug (20240220 - tzuhan)
-  console.log(`convertOrder result`, result)
   order = result[0] as Order;
   if (order.type === TYPE.ORDER_ASK) {
     currency1 = currencyMap[order.ask].code.toUpperCase();
@@ -243,30 +236,20 @@ async function convertTrade(
 ): Promise<TideBitEvent | null> {
 
   const [result1, metadata1] = await warehouseDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE modifiable_id = ${accountVersion.modifiable_id} AND modifiable_type = '${accountVersion.modifiable_type}';`);
-  // Deprecated: debug (20240220 - tzuhan)
-  console.log(`convertTrade result1`, result1)
   const accountVersions = result1 as AccountVersion[];
   let existedTidebitEvent = tidebitEvents?.find((tidebitEvent) =>
     JSON.parse(tidebitEvent.account_version_ids).includes(accountVersion.id)
   );
   if (!existedTidebitEvent) {
     let [result2, metadata2] = await warehouseDB.query(`SELECT ${events_keys_str} FROM accounting_events WHERE account_version_ids = "[${accountVersions.sort((a, b) => +a.id - +b.id).map(accV => accV.id).join(',')}]" LIMIT 1;`);
-    // Deprecated: debug (20240220 - tzuhan)
-    console.log(`convertTrade result2`, result2)
     existedTidebitEvent = result2[0] as TideBitEvent;
   }
   if (existedTidebitEvent) return null;
   const [result3, metadata3] = await warehouseDB.query(`SELECT ${trades_keys_str} FROM trades WHERE id = ${accountVersion.modifiable_id} LIMIT 1;`);
-  // Deprecated: debug (20240220 - tzuhan)
-  console.log(`convertOrder result3`, result3)
   const trade = result3[0] as Trade;
   const [result4, metadata4] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.ask_id} LIMIT 1;`);
-  // Deprecated: debug (20240220 - tzuhan)
-  console.log(`convertOrder result4`, result4)
   const askOrder = result4[0] as Order;
   const [result5, metadata5] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.bid_id} LIMIT 1;`);
-  // Deprecated: debug (20240220 - tzuhan)
-  console.log(`convertOrder result5`, result5)
   const bidOrder = result5[0] as Order;
   if (!askOrder || !bidOrder) {
     // Deprecated: [debug] (20240229 - tzuhan)
@@ -368,19 +351,13 @@ async function convertOrderFullfilled(
 ): Promise<TideBitEvent> {
   let currency1: string, currency2: string, order: Order, tidebitEventCode: string, tidebitEvnet: TideBitEvent;
   const [result1, metadata1] = await warehouseDB.query(`SELECT ${trades_keys_str} FROM trades WHERE id = ${accountVersion.modifiable_id} LIMIT 1;`);
-  // Deprecated: debug (20240220 - tzuhan)
-  console.log(`convertOrder result1`, result1)
   const trade = result1[0] as Trade;
   if (accountVersion.member_id === trade.ask_member_id) {
     const [result2, metadata2] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.ask_id} LIMIT 1;`);
-    // Deprecated: debug (20240220 - tzuhan)
-    console.log(`convertOrder result2`, result2)
     order = result2[0] as Order;
   }
   if (accountVersion.member_id === trade.bid_member_id) {
     const [result3, metadata3] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.bid_id} LIMIT 1;`);
-    // Deprecated: debug (20240220 - tzuhan)
-    console.log(`convertOrder result3`, result3)
     order = result3[0] as Order;
   }
   if (order.type === TYPE.ORDER_ASK) {
@@ -463,8 +440,11 @@ async function doJob() {
 
       // step3: convert account version to TideBit event
       const tidebitEvents = [];
+      console.log(`doJob results: [${results.length}]`)
       for (const accountVersion of results) {
+        console.log(`doJob accountVersion: `, accountVersion)
         const tidebitEvent = await eventParser(accountVersion as AccountVersion, [...tidebitEvents]);
+        console.log(`doJob tidebitEvent: `, tidebitEvent)
         if (!!tidebitEvent) tidebitEvents.push(tidebitEvent);
       }
       // step4: write data to warehouse
