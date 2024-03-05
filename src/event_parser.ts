@@ -126,14 +126,14 @@ async function convertDeposit(accountVersion: AccountVersion): Promise<TideBitEv
   const values = [accountVersion.member_id, accountVersion.currency, accountVersion.balance, accountVersion.created_at];
   const [result, metadata] = await warehouseDB.query(query, { replacements: values });
   const referralCommision = result[0] as ReferralCommision;
-  let tidebitEvnet: TideBitEvent;
+  let tidebitEvent: TideBitEvent;
   if (referralCommision) {
     const tickerName = marketMap[referralCommision.market].name.replace(
       "/",
       "_"
     );
     tidebitEventCode = EVENT_CODE.REFERRAL_COMMISSION[tickerName];
-    tidebitEvnet = {
+    tidebitEvent = {
       event_code: tidebitEventCode ?? EVENT_CODE.UNDEFINED,
       type: EVENT_TYPE.REFERRAL_COMMISSION,
       details: JSON.stringify({
@@ -149,7 +149,7 @@ async function convertDeposit(accountVersion: AccountVersion): Promise<TideBitEv
       account_version_ids: JSON.stringify([accountVersion.id]),
     };
   } else {
-    tidebitEvnet = {
+    tidebitEvent = {
       event_code: tidebitEventCode ?? EVENT_CODE.UNDEFINED,
       type: EVENT_TYPE.DEPOSIT,
       details: JSON.stringify({
@@ -164,7 +164,7 @@ async function convertDeposit(accountVersion: AccountVersion): Promise<TideBitEv
       account_version_ids: JSON.stringify([accountVersion.id]),
     };
   }
-  return tidebitEvnet;
+  return tidebitEvent;
 }
 
 async function convertWithdraw(
@@ -200,7 +200,7 @@ async function convertOrder(
   type: string,
   accountVersion: AccountVersion
 ): Promise<TideBitEvent> {
-  let currency1: string, currency2: string, order: Order, tidebitEventCode: string, tidebitEvnet: TideBitEvent;
+  let currency1: string, currency2: string, order: Order, tidebitEventCode: string, tidebitEvent: TideBitEvent;
   // TODO: need orders table (20240220 - tzuhan)
   const [result, metadata] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${accountVersion.modifiable_id} LIMIT 1;`);
   order = result[0] as Order;
@@ -212,7 +212,7 @@ async function convertOrder(
     currency2 = currencyMap[order.ask].code.toUpperCase();
   }
   tidebitEventCode = EVENT_CODE[`SPOT_TRADE${type ? `_${type}` : ''}`][`${currency1}_${currency2}`];
-  tidebitEvnet = {
+  tidebitEvent = {
     event_code: tidebitEventCode ?? EVENT_CODE.UNDEFINED,
     type: EVENT_TYPE.SPOT_TRADE,
     details: JSON.stringify({
@@ -227,16 +227,18 @@ async function convertOrder(
     created_at: new Date().getTime(),
     account_version_ids: JSON.stringify([accountVersion.id]),
   };
-  return tidebitEvnet;
+  return tidebitEvent;
 }
 
 async function convertTrade(
   accountVersion: AccountVersion,
   tidebitEvents: TideBitEvent[]
 ): Promise<TideBitEvent | null> {
-
+  console.log(`convertTrade accountVersion: `, accountVersion);
+  console.log(`convertTrade tidebitEvents: `, tidebitEvents);
   const [result1, metadata1] = await warehouseDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE modifiable_id = ${accountVersion.modifiable_id} AND modifiable_type = '${accountVersion.modifiable_type}';`);
   const accountVersions = result1 as AccountVersion[];
+  console.log(`convertTrade accountVersions: `, accountVersions);
   let existedTidebitEvent = tidebitEvents?.find((tidebitEvent) =>
     JSON.parse(tidebitEvent.account_version_ids).includes(accountVersion.id)
   );
@@ -247,10 +249,13 @@ async function convertTrade(
   if (existedTidebitEvent) return null;
   const [result3, metadata3] = await warehouseDB.query(`SELECT ${trades_keys_str} FROM trades WHERE id = ${accountVersion.modifiable_id} LIMIT 1;`);
   const trade = result3[0] as Trade;
+  console.log(`convertTrade trade: `, trade);
   const [result4, metadata4] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.ask_id} LIMIT 1;`);
   const askOrder = result4[0] as Order;
+  console.log(`convertTrade askOrder: `, askOrder);
   const [result5, metadata5] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.bid_id} LIMIT 1;`);
   const bidOrder = result5[0] as Order;
+  console.log(`convertTrade bidOrder: `, bidOrder);
   if (!askOrder || !bidOrder) {
     // Deprecated: [debug] (20240229 - tzuhan)
     console.error(
@@ -319,7 +324,7 @@ async function convertTrade(
   }
   const tidebitEventCode =
     EVENT_CODE.SPOT_TRADE_MATCH[`${currency1}_${currency2}`];
-  const tidebitEvnet: TideBitEvent = {
+  const tidebitEvent: TideBitEvent = {
     event_code: tidebitEventCode ?? EVENT_CODE.UNDEFINED,
     type: EVENT_TYPE.SPOT_TRADE_MATCH,
     details: JSON.stringify({
@@ -343,44 +348,50 @@ async function convertTrade(
       takerAccountVersionSubbed.id,
     ]),
   };
-  return tidebitEvnet;
+  console.log(`convertTrade tidebitEvent: `, tidebitEvent);
+  return tidebitEvent;
 }
 
 async function convertOrderFullfilled(
   accountVersion: AccountVersion
 ): Promise<TideBitEvent> {
-  let currency1: string, currency2: string, order: Order, tidebitEventCode: string, tidebitEvnet: TideBitEvent;
-  const [result1, metadata1] = await warehouseDB.query(`SELECT ${trades_keys_str} FROM trades WHERE id = ${accountVersion.modifiable_id} LIMIT 1;`);
-  const trade = result1[0] as Trade;
-  if (accountVersion.member_id === trade.ask_member_id) {
-    const [result2, metadata2] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.ask_id} LIMIT 1;`);
-    order = result2[0] as Order;
+  try {
+    let currency1: string, currency2: string, order: Order, tidebitEventCode: string, tidebitEvent: TideBitEvent;
+    const [result1, metadata1] = await warehouseDB.query(`SELECT ${trades_keys_str} FROM trades WHERE id = ${accountVersion.modifiable_id} LIMIT 1;`);
+    const trade = result1[0] as Trade;
+    if (accountVersion.member_id === trade.ask_member_id) {
+      const [result2, metadata2] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.ask_id} LIMIT 1;`);
+      order = result2[0] as Order;
+    }
+    if (accountVersion.member_id === trade.bid_member_id) {
+      const [result3, metadata3] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.bid_id} LIMIT 1;`);
+      order = result3[0] as Order;
+    }
+    if (order.type === TYPE.ORDER_ASK) {
+      currency1 = currencyMap[order.ask].code.toUpperCase();
+      currency2 = currencyMap[order.bid].code.toUpperCase();
+    } else {
+      currency1 = currencyMap[order.bid].code.toUpperCase();
+      currency2 = currencyMap[order.ask].code.toUpperCase();
+    }
+    tidebitEventCode =
+      EVENT_CODE.SPOT_TRADE_FULLFILL[`${currency1}_${currency2}`];
+    tidebitEvent = {
+      event_code: tidebitEventCode ?? EVENT_CODE.UNDEFINED,
+      type: EVENT_TYPE.SPOT_TRADE_FULLFILL,
+      details: JSON.stringify({
+        EP001: accountVersion.balance,
+        EP002: accountVersion.created_at,
+      }),
+      occurred_at: new Date(accountVersion.created_at).getTime(),
+      created_at: new Date().getTime(),
+      account_version_ids: JSON.stringify([accountVersion.id]),
+    };
+    return tidebitEvent;
+  } catch (e) {
+    console.error(`convertOrderFullfilled error: `, e);
+    throw e;
   }
-  if (accountVersion.member_id === trade.bid_member_id) {
-    const [result3, metadata3] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.bid_id} LIMIT 1;`);
-    order = result3[0] as Order;
-  }
-  if (order.type === TYPE.ORDER_ASK) {
-    currency1 = currencyMap[order.ask].code.toUpperCase();
-    currency2 = currencyMap[order.bid].code.toUpperCase();
-  } else {
-    currency1 = currencyMap[order.bid].code.toUpperCase();
-    currency2 = currencyMap[order.ask].code.toUpperCase();
-  }
-  tidebitEventCode =
-    EVENT_CODE.SPOT_TRADE_FULLFILL[`${currency1}_${currency2}`];
-  tidebitEvnet = {
-    event_code: tidebitEventCode ?? EVENT_CODE.UNDEFINED,
-    type: EVENT_TYPE.SPOT_TRADE_FULLFILL,
-    details: JSON.stringify({
-      EP001: accountVersion.balance,
-      EP002: accountVersion.created_at,
-    }),
-    occurred_at: new Date(accountVersion.created_at).getTime(),
-    created_at: new Date().getTime(),
-    account_version_ids: JSON.stringify([accountVersion.id]),
-  };
-  return tidebitEvnet;
 }
 
 async function eventParser(
@@ -457,14 +468,14 @@ async function doJob() {
       }
 
       // step5: update or insert job status
-      keepGo = endId <  latestId;
+      keepGo = endId < latestId;
       const currentEndId: number = keepGo ? (results[results.length - 1] as { id: number })?.id : startId;
       const unix_timestamp = Math.round(new Date().getTime() / 1000);
       const step5Query = `INSERT INTO jobs (table_name, sync_id, parsed_id, created_at, updated_at) VALUES ('${table_name}', ${(jobStatus[0] as { sync_id: number })?.sync_id || 0}, ${currentEndId}, ${unix_timestamp}, ${unix_timestamp}) ON CONFLICT(table_name) DO UPDATE SET parsed_id = ${currentEndId}, updated_at = ${unix_timestamp};`;
       const [step5Results] = await warehouseDB.query(step5Query, { transaction: t });
 
       await t.commit(); // Commit the transaction
-      
+
       // step5: return if continue or not
       const currentCount = results.length;
       const time = new Date().toTimeString().split(" ")[0];
