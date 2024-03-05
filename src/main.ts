@@ -132,4 +132,4 @@ async function syncDB() {
   warehouseDB.close();
   await sleep(3600000);
 }
-syncDB();
+// syncDB();
