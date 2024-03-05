@@ -498,7 +498,7 @@ async function sleep(ms: number = 500) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function parser() {
+export async function parser() {
   let keepGo = await doJob();
   while (keepGo) {
     await sleep();
@@ -508,5 +508,3 @@ async function parser() {
   warehouseDB.close();
   await sleep(3600000);
 }
-
-parser();

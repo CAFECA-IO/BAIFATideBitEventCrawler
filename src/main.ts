@@ -1,14 +1,15 @@
-import express from 'express';
+// import express from 'express';
 import 'dotenv/config';
 // import { parser } from './event_parser';
-import { syncDB } from './sync_tidebit_db';
+// import { syncDB } from './sync_tidebit_db';
+import { parser } from './event_parser';
 
-export const app = express();
-const port = process.env.API_PORT || 3000; // or any port you prefer
+// export const app = express();
+// const port = process.env.API_PORT || 3000; // or any port you prefer
 
-app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-});
+// app.listen(port, () => {
+//     console.log(`Server running on port ${port}`);
+// });
 
-// parser();
+parser();
 // syncDB();
