@@ -122,7 +122,7 @@ interface ReferralCommision {
 async function convertDeposit(accountVersion: AccountVersion): Promise<TideBitEvent> {
   const currency = currencyMap[accountVersion.currency].code.toUpperCase();
   let tidebitEventCode: string = EVENT_CODE.DEPOSIT[currency];
-  const [result, metadata] = await warehouseDB.query(`SELECT ${referral_commissions_keys_str} FROM referral_commissions state = "deposited" AND referred_by_member_id = ${accountVersion.member_id} AND currency = ${accountVersion.currency} AND amount = ${accountVersion.balance} AND deposited_at <= "${accountVersion.created_at}" LIMIT 1;`);
+  const [result, metadata] = await warehouseDB.query(`SELECT ${referral_commissions_keys_str} FROM referral_commissions WHERE state = "deposited" AND referred_by_member_id = ${accountVersion.member_id} AND currency = ${accountVersion.currency} AND amount = ${accountVersion.balance} AND deposited_at <= "${accountVersion.created_at}" LIMIT 1;`);
   // Deprecated: debug (20240220 - tzuhan)
   console.log(`convertDeposit result`, result)
   const referralCommision = result[0] as ReferralCommision;
