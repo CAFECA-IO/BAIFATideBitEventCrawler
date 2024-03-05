@@ -237,7 +237,10 @@ async function convertTrade(
   try {
     console.log(`convertTrade accountVersion: `, accountVersion);
     console.log(`convertTrade tidebitEvents: `, tidebitEvents);
-    const [result1, metadata1] = await warehouseDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE modifiable_id = ${accountVersion.modifiable_id} AND modifiable_type = '${accountVersion.modifiable_type}';`);
+    const query = `SELECT ${account_versions_keys_str} FROM account_versions WHERE modifiable_id = ${accountVersion.modifiable_id} AND modifiable_type = '${accountVersion.modifiable_type}';`
+    console.log(`convertTrade query: `, query);
+    const [result1, metadata1] = await warehouseDB.query(query);
+    console.log(`convertTrade result1: `, result1);
     const accountVersions = result1 as AccountVersion[];
     console.log(`convertTrade accountVersions: `, accountVersions);
     let existedTidebitEvent = tidebitEvents?.find((tidebitEvent) =>
