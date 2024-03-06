@@ -153,8 +153,8 @@ async function convertDeposit(accountVersion: AccountVersion): Promise<TideBitEv
       event_code: tidebitEventCode ?? EVENT_CODE.UNDEFINED,
       type: EVENT_TYPE.DEPOSIT,
       details: JSON.stringify({
-        EP001: accountVersion.balance,
-        EP002: accountVersion.fee,
+        EP001: Math.abs(+accountVersion.balance),
+        EP002: Math.abs(+accountVersion.fee),
         EP003: 0,
         EP004: accountVersion.created_at,
         EP005: 0, //TODO: exchange rate (20240123 - tzuhan)
@@ -171,11 +171,14 @@ function convertWithdraw(
   type: string,
   accountVersions: AccountVersion[]
 ): TideBitEvent {
+  console.log(`convertWithdraw type: `, type);
+  console.log(`convertWithdraw accountVersions: `, accountVersions);
   const withdrawAccountVeresion = accountVersions.find(av => av.reason === REASON[`WITHDRAW${type ? `_${type}` : ""}`]);
   const withdrawFeeAccountVeresion = accountVersions.find(av => av.reason === REASON[`WITHDRAW_FEE${type ? `_${type}` : ""}`]);
   const currency = currencyMap[withdrawAccountVeresion.currency].code.toUpperCase();
   const tidebitEventCode =
     EVENT_CODE[`WITHDRAW${type ? `_${type}` : ""}`][currency];
+  console.log(`convertWithdraw tidebitEvent type: `, EVENT_TYPE[`WITHDRAW${type ? `_${type}` : ""}`]);
   const tidebitEvent: TideBitEvent = {
     event_code: tidebitEventCode ?? EVENT_CODE.UNDEFINED,
     type: EVENT_TYPE[`WITHDRAW${type ? `_${type}` : ""}`],
@@ -214,13 +217,13 @@ async function convertOrder(
   tidebitEventCode = EVENT_CODE[`SPOT_TRADE${type ? `_${type}` : ''}`][`${currency1}_${currency2}`];
   tidebitEvent = {
     event_code: tidebitEventCode ?? EVENT_CODE.UNDEFINED,
-    type: EVENT_TYPE.SPOT_TRADE,
+    type: EVENT_TYPE[`SPOT_TRADE${type ? `_${type}` : ''}`],
     details: JSON.stringify({
       EP001: Math.abs(+accountVersion.locked),
       EP002:
         order.type === TYPE.ORDER_ASK
           ? +order.price * Math.abs(+accountVersion.locked)
-          : order.origin_volume,
+          : Math.abs(+order.origin_volume),
       EP003: accountVersion.created_at,
     }),
     occurred_at: new Date(accountVersion.created_at).getTime(),
@@ -234,16 +237,12 @@ async function convertTrade(
   accountVersions: AccountVersion[],
 ): Promise<TideBitEvent | null> {
   try {
-    console.log(`convertTrade accountVersions: `, accountVersions);
     const [result3, metadata3] = await warehouseDB.query(`SELECT ${trades_keys_str} FROM trades WHERE id = ${accountVersions[0].modifiable_id} LIMIT 1;`);
     const trade = result3[0] as Trade;
-    console.log(`convertTrade trade: `, trade);
     const [result4, metadata4] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.ask_id} LIMIT 1;`);
     const askOrder = result4[0] as Order;
-    console.log(`convertTrade askOrder: `, askOrder);
     const [result5, metadata5] = await warehouseDB.query(`SELECT ${orders_keys_str} FROM orders WHERE id = ${trade.bid_id} LIMIT 1;`);
     const bidOrder = result5[0] as Order;
-    console.log(`convertTrade bidOrder: `, bidOrder);
     if (!askOrder || !bidOrder) {
       // Deprecated: [debug] (20240229 - tzuhan)
       console.error(
@@ -322,9 +321,9 @@ async function convertTrade(
         EP004: Math.abs(+takerAccountVersionAdded.balance), // 0.1 BTC (taker)
         EP005: 0, //TODO: 交易時匯率 1 USDT = 1.01 USD (20240129 - tzuhan)
         EP006: 0, //TODO: 交易時匯率 1 BTC = 25000 USD (20240129 - tzuhan)
-        EP007: takerAccountVersionAdded.fee, // 內扣手續費 0.001 BTC (taker)
+        EP007: Math.abs(+takerAccountVersionAdded.fee), // 內扣手續費 0.001 BTC (taker)
         EP008: 0, // 外扣手續費 10 USDT (taker)
-        EP009: makerAccountVersionAdded.fee, // 內扣手續費 20 USDT (maker)
+        EP009: Math.abs(+makerAccountVersionAdded.fee), // 內扣手續費 20 USDT (maker)
         EP010: 0, // 外扣手續費 0.002 BTC (maker)
       }),
       occurred_at: new Date(accountVersions[0].created_at).getTime(),
@@ -336,7 +335,6 @@ async function convertTrade(
         takerAccountVersionSubbed.id,
       ]),
     };
-    console.log(`convertTrade tidebitEvent: `, tidebitEvent);
     return tidebitEvent;
   }
   catch (e) {
@@ -374,7 +372,7 @@ async function convertOrderFullfilled(
       event_code: tidebitEventCode ?? EVENT_CODE.UNDEFINED,
       type: EVENT_TYPE.SPOT_TRADE_FULLFILL,
       details: JSON.stringify({
-        EP001: accountVersion.balance,
+        EP001: Math.abs(+accountVersion.balance),
         EP002: accountVersion.created_at,
       }),
       occurred_at: new Date(accountVersion.created_at).getTime(),
@@ -443,7 +441,7 @@ async function doJob() {
   try {
     let keepGo = false;
     const table_name = 'account_versions';
-    const count = 10000;
+    const count = 100; // TODO: change to 10000 (20240306 - tzuhan)
 
     // step1: read job status from warehouse
     const step1Query = `SELECT ${jobs_keys_str} FROM jobs WHERE table_name = '${table_name}';`;
@@ -460,7 +458,9 @@ async function doJob() {
       const endId: number = startId + count;
 
       // step2: read data from source
-      const [results, metadata] = await warehouseDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE id > ${startId} AND id <= ${endId};`);
+      const step2Query = `SELECT ${account_versions_keys_str} FROM account_versions WHERE id > ${startId} AND id <= ${endId};`;
+      console.log(`doJob step2Query: ${step2Query}`)
+      const [results, metadata] = await warehouseDB.query(step2Query);
       const accountVersions = results as AccountVersion[];
       // step3: convert account version to TideBit event
       const tidebitEvents = [];
@@ -487,6 +487,7 @@ async function doJob() {
           const existedTidebitEvent = tidebitEvents?.find((tidebitEvent) =>
             tidebitEvent.type.includes(EVENT_TYPE.WITHDRAW) && JSON.parse(tidebitEvent.account_version_ids).includes(accountVersion.id)
           );
+          console.log(`doJob existedTidebitEvent: `, existedTidebitEvent)
           if (existedTidebitEvent) continue;
           const relatedAccountVersions = accountVersions.filter(av =>
             av.modifiable_id === accountVersion.modifiable_id && av.modifiable_type === 'Withdraw'
@@ -513,7 +514,7 @@ async function doJob() {
         });
         const step4Query = `INSERT INTO accounting_events (event_code, type, details, occurred_at, created_at, account_version_ids) VALUES ${step4Values.join(',')};`;
         console.log(`doJob, step4Query: `, step4Query);
-        const [step4Results] = await warehouseDB.query(step4Query, { transaction: t });
+        // const [step4Results] = await warehouseDB.query(step4Query, { transaction: t });
       }
 
       // step5: update or insert job status
@@ -521,7 +522,7 @@ async function doJob() {
       const unix_timestamp = Math.round(new Date().getTime() / 1000);
       const step5Query = `INSERT INTO jobs (table_name, sync_id, parsed_id, created_at, updated_at) VALUES ('${table_name}', ${(jobStatus[0] as { sync_id: number })?.sync_id || 0}, ${currentEndId}, ${unix_timestamp}, ${unix_timestamp}) ON CONFLICT(table_name) DO UPDATE SET parsed_id = ${currentEndId}, updated_at = ${unix_timestamp};`;
       console.log(`doJob, step5Query: `, step5Query);
-      const [step5Results] = await warehouseDB.query(step5Query, { transaction: t });
+      // const [step5Results] = await warehouseDB.query(step5Query, { transaction: t });
 
       await t.commit(); // Commit the transaction
 
