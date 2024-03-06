@@ -451,7 +451,6 @@ async function eventParser(
       return null;
   }
 }
-let loop = 0;
 
 async function doJob() {
   const t = await warehouseDB.transaction();
@@ -459,16 +458,13 @@ async function doJob() {
   try {
     let keepGo = false;
     const table_name = 'account_versions';
-    const count = 10; // TODO: change to 10000 (20240306 - tzuhan)
+    const count = 1000; // TODO: change to 10000 (20240306 - tzuhan)
 
     // step1: read job status from warehouse
     const step1Query = `SELECT ${jobs_keys_str} FROM jobs WHERE table_name = '${table_name}';`;
     const [jobStatus, jobStatusMetadata] = await warehouseDB.query(step1Query);
     const jobStartId: number = (jobStatus[0] as { parsed_id: number })?.parsed_id || 0;
     console.log(`doJob, jobStartId: ${jobStartId}`, jobStatus);
-    
-    if(loop > 1) return false;
-    loop++;
     
     // step1.1: check latest id from warehouse
     const [latestIdResults, latestIdMetadata] = await warehouseDB.query(`SELECT MAX(id) as id FROM account_versions;`);
