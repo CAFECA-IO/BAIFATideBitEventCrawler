@@ -66,8 +66,8 @@ interface TideBitEvent {
   event_code: string;
   type: string;
   details: string;
-  occurred_at: number;
-  created_at: number;
+  occurred_at: number; //Info: unix timestamp (seconds) (20240306 - tzuhan)
+  created_at: number; //Info: unix timestamp (seconds) (20240306 - tzuhan)
   account_version_ids: string;
 };
 
@@ -129,6 +129,8 @@ interface ReferralCommision {
   // updated_at: Date,
 }
 
+function getTimestamp(date: Date) { return Math.ceil(date.getTime() / 1000) };
+
 async function convertDeposit(accountVersion: AccountVersion): Promise<TideBitEvent> {
   const currency = currencyMap[accountVersion.currency].code.toUpperCase();
   let tidebitEventCode: string = EVENT_CODE.DEPOSIT[currency];
@@ -154,8 +156,8 @@ async function convertDeposit(accountVersion: AccountVersion): Promise<TideBitEv
         // EP005: SafeMath.div(referralCommision.amount, referralCommision.ref_gross_fee),
         EP003: accountVersion.created_at,
       }),
-      occurred_at: new Date(accountVersion.created_at).getTime(),
-      created_at: new Date().getTime(),
+      occurred_at: getTimestamp(new Date(accountVersion.created_at)),
+      created_at: getTimestamp(new Date()),
       account_version_ids: JSON.stringify([accountVersion.id]),
     };
   } else {
@@ -169,8 +171,8 @@ async function convertDeposit(accountVersion: AccountVersion): Promise<TideBitEv
         EP004: accountVersion.created_at,
         EP005: 0, //TODO: exchange rate (20240123 - tzuhan)
       }),
-      occurred_at: new Date(accountVersion.created_at).getTime(),
-      created_at: new Date().getTime(),
+      occurred_at: getTimestamp(new Date(accountVersion.created_at)),
+      created_at: getTimestamp(new Date()),
       account_version_ids: JSON.stringify([accountVersion.id]),
     };
   }
@@ -204,8 +206,8 @@ function convertWithdraw(
       EP004: withdrawAccountVeresion.created_at,
       EP005: 0, //TODO: exchange rate of withdraw currency (20240123 - tzuhan)
     }),
-    occurred_at: new Date(withdrawAccountVeresion.created_at).getTime(),
-    created_at: new Date().getTime(),
+    occurred_at: getTimestamp(new Date(withdrawAccountVeresion.created_at)),
+    created_at: getTimestamp(new Date()),
     account_version_ids: JSON.stringify([
       withdrawAccountVeresion.id,
       withdrawFeeAccountVeresion.id,
@@ -241,8 +243,8 @@ async function convertOrder(
           : Math.abs(+order.origin_volume),
       EP003: accountVersion.created_at,
     }),
-    occurred_at: new Date(accountVersion.created_at).getTime(),
-    created_at: new Date().getTime(),
+    occurred_at: getTimestamp(new Date(accountVersion.created_at)),
+    created_at: getTimestamp(new Date()),
     account_version_ids: JSON.stringify([accountVersion.id]),
   };
   return tidebitEvent;
@@ -341,8 +343,8 @@ async function convertTrade(
         EP009: Math.abs(+makerAccountVersionAdded.fee), // 內扣手續費 20 USDT (maker)
         EP010: 0, // 外扣手續費 0.002 BTC (maker)
       }),
-      occurred_at: new Date(accountVersions[0].created_at).getTime(),
-      created_at: new Date().getTime(),
+      occurred_at: getTimestamp(new Date(makerAccountVersionAdded.created_at)),
+      created_at: getTimestamp(new Date()),
       account_version_ids: JSON.stringify([
         makerAccountVersionAdded.id,
         makerAccountVersionSubbed.id,
@@ -390,8 +392,8 @@ async function convertOrderFullfilled(
         EP001: Math.abs(+accountVersion.balance),
         EP002: accountVersion.created_at,
       }),
-      occurred_at: new Date(accountVersion.created_at).getTime(),
-      created_at: new Date().getTime(),
+      occurred_at: getTimestamp(new Date(accountVersion.created_at)),
+      created_at: getTimestamp(new Date()),
       account_version_ids: JSON.stringify([accountVersion.id]),
     };
     return tidebitEvent;
@@ -526,8 +528,8 @@ async function doJob() {
       }
       // step4: write data to warehouse
       if (tidebitEvents.length > 0) {
-        const step4Values = tidebitEvents.map((result: any) => {
-          return `(${result.event_code}, ${result.type}, ${result.details}, ${result.occurred_at}, ${result.created_at}, ${result.account_version_ids})`;
+        const step4Values = tidebitEvents.map((result: TideBitEvent) => {
+          return `('${result.event_code}', '${result.type}', '${result.details}', ${result.occurred_at}, ${result.created_at}, '${result.account_version_ids}')`;
         });
         const step4Query = `INSERT INTO accounting_events (event_code, type, details, occurred_at, created_at, account_version_ids) VALUES ${step4Values.join(',')};`;
         console.log(`doJob, step4Query: `, step4Query);
