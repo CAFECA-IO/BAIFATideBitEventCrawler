@@ -167,29 +167,29 @@ async function convertDeposit(accountVersion: AccountVersion): Promise<TideBitEv
   return tidebitEvent;
 }
 
-async function convertWithdraw(
+function convertWithdraw(
   type: string,
-  accountVersion: AccountVersion
-): Promise<TideBitEvent> {
-  const [result, metadata] = await warehouseDB.query(`SELECT ${account_versions_keys_str} FROM account_versions WHERE modifiable_id = ${accountVersion.modifiable_id} AND reason = ${REASON[`WITHDRAW_FEE${type ? `_${type}` : ""}`]} LIMIT 1;`);
-  const withdrawFeeAccountVeresion = result[0] as AccountVersion;
-  const currency = currencyMap[accountVersion.currency].code.toUpperCase();
+  accountVersions: AccountVersion[]
+): TideBitEvent {
+  const withdrawAccountVeresion = accountVersions.find(av => av.reason === REASON[`WITHDRAW${type ? `_${type}` : ""}`]);
+  const withdrawFeeAccountVeresion = accountVersions.find(av => av.reason === REASON[`WITHDRAW_FEE${type ? `_${type}` : ""}`]);
+  const currency = currencyMap[withdrawAccountVeresion.currency].code.toUpperCase();
   const tidebitEventCode =
     EVENT_CODE[`WITHDRAW${type ? `_${type}` : ""}`][currency];
   const tidebitEvent: TideBitEvent = {
     event_code: tidebitEventCode ?? EVENT_CODE.UNDEFINED,
     type: EVENT_TYPE[`WITHDRAW${type ? `_${type}` : ""}`],
     details: JSON.stringify({
-      EP001: Math.abs(+accountVersion.locked),
+      EP001: Math.abs(+withdrawAccountVeresion.locked),
       EP002: Math.abs(+withdrawFeeAccountVeresion?.locked || 0),
       EP003: 0,
-      EP004: accountVersion.created_at,
+      EP004: withdrawAccountVeresion.created_at,
       EP005: 0, //TODO: exchange rate of withdraw currency (20240123 - tzuhan)
     }),
-    occurred_at: new Date(accountVersion.created_at).getTime(),
+    occurred_at: new Date(withdrawAccountVeresion.created_at).getTime(),
     created_at: new Date().getTime(),
     account_version_ids: JSON.stringify([
-      accountVersion.id,
+      withdrawAccountVeresion.id,
       withdrawFeeAccountVeresion.id,
     ]),
   };
@@ -388,22 +388,40 @@ async function convertOrderFullfilled(
   }
 }
 
+function withdrawParser(accountVersions: AccountVersion[]): TideBitEvent {
+  switch (accountVersions[0].reason) {
+    case REASON.WITHDRAW_LOCK:
+    case REASON.WITHDRAW_FEE_LOCK:
+      return convertWithdraw("LOCK", accountVersions);
+    case REASON.WITHDRAW:
+    case REASON.WITHDRAW_FEE:
+      return convertWithdraw(null, accountVersions);
+    case REASON.WITHDRAW_UNLOCK:
+    case REASON.WITHDRAW_FEE_UNLOCK:
+      return convertWithdraw("UNLOCK", accountVersions);
+    default:
+      return null;
+  }
+}
+
 async function eventParser(
   accountVersion: AccountVersion,
-  tidebitEvents: TideBitEvent[],
+  // tidebitEvents: TideBitEvent[],
 ): Promise<TideBitEvent | null> {
   switch (accountVersion.reason) {
     case REASON.DEPOSIT:
       return convertDeposit(accountVersion);
+    /**
     case REASON.WITHDRAW_LOCK:
-      // case REASON.WITHDRAW_FEE_LOCK:
+    // case REASON.WITHDRAW_FEE_LOCK:
       return convertWithdraw("LOCK", accountVersion);
     case REASON.WITHDRAW:
-      // case REASON.WITHDRAW_FEE:
+    // case REASON.WITHDRAW_FEE:
       return convertWithdraw(null, accountVersion);
     case REASON.WITHDRAW_UNLOCK:
-      // case REASON.WITHDRAW_FEE_UNLOCK:
+    // case REASON.WITHDRAW_FEE_UNLOCK:
       return convertWithdraw("UNLOCK", accountVersion);
+     */
     case REASON.ORDER_SUBMIT:
       return convertOrder(null, accountVersion);
     case REASON.ORDER_CANCEL:
@@ -461,12 +479,28 @@ async function doJob() {
           if (tidebitEvent) {
             currentEndId = Math.max(...relatedAccountVersions.map(av => av.id));
             tidebitEvents.push(tidebitEvent);
-          }else {
+          } else {
+            keepGo = true;
+            break;
+          }
+        } else if (accountVersion.modifiable_type === 'Withdraw') {
+          const existedTidebitEvent = tidebitEvents?.find((tidebitEvent) =>
+            tidebitEvent.type.includes(EVENT_TYPE.WITHDRAW) && JSON.parse(tidebitEvent.account_version_ids).includes(accountVersion.id)
+          );
+          if (existedTidebitEvent) continue;
+          const relatedAccountVersions = accountVersions.filter(av =>
+            av.modifiable_id === accountVersion.modifiable_id && av.modifiable_type === 'Withdraw'
+          );
+          tidebitEvent = withdrawParser(relatedAccountVersions);
+          if (tidebitEvent) {
+            currentEndId = Math.max(...relatedAccountVersions.map(av => av.id));
+            tidebitEvents.push(tidebitEvent);
+          } else {
             keepGo = true;
             break;
           }
         } else {
-          tidebitEvent = await eventParser(accountVersion as AccountVersion, [...tidebitEvents]);
+          tidebitEvent = await eventParser(accountVersion as AccountVersion);
           currentEndId = accountVersion.id;
           console.log(`doJob tidebitEvent: `, tidebitEvent)
           if (!!tidebitEvent) tidebitEvents.push(tidebitEvent);
@@ -478,6 +512,7 @@ async function doJob() {
           return `(${result.event_code}, ${result.type}, ${result.details}, ${result.occurred_at}, ${result.created_at}, ${result.account_version_ids})`;
         });
         const step4Query = `INSERT INTO accounting_events (event_code, type, details, occurred_at, created_at, account_version_ids) VALUES ${step4Values.join(',')};`;
+        console.log(`doJob, step4Query: `, step4Query);
         const [step4Results] = await warehouseDB.query(step4Query, { transaction: t });
       }
 
@@ -485,7 +520,8 @@ async function doJob() {
       keepGo = currentEndId < latestId;
       const unix_timestamp = Math.round(new Date().getTime() / 1000);
       const step5Query = `INSERT INTO jobs (table_name, sync_id, parsed_id, created_at, updated_at) VALUES ('${table_name}', ${(jobStatus[0] as { sync_id: number })?.sync_id || 0}, ${currentEndId}, ${unix_timestamp}, ${unix_timestamp}) ON CONFLICT(table_name) DO UPDATE SET parsed_id = ${currentEndId}, updated_at = ${unix_timestamp};`;
-      // const [step5Results] = await warehouseDB.query(step5Query, { transaction: t });
+      console.log(`doJob, step5Query: `, step5Query);
+      const [step5Results] = await warehouseDB.query(step5Query, { transaction: t });
 
       await t.commit(); // Commit the transaction
 
