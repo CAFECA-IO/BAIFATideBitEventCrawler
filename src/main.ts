@@ -1,15 +1,18 @@
-// import express from 'express';
 import 'dotenv/config';
-// import { parser } from './event_parser';
-// import { syncDB } from './sync_tidebit_db';
+import { NestFactory } from '@nestjs/core';
+import { syncDB } from './sync_tidebit_db';
 import { parser } from './event_parser';
+import { AppModule } from './app/app.module';
 
-// export const app = express();
-// const port = process.env.API_PORT || 3000; // or any port you prefer
+const API_PORT = process.env.API_PORT || 3000;
 
-// app.listen(port, () => {
-//     console.log(`Server running on port ${port}`);
-// });
+async function bootstrap() {
+    const app = await NestFactory.create(AppModule);
+    await app.listen(+API_PORT);
+    // syncDB();
+    parser();
+    console.log(`Application is running on: ${await app.getUrl()}`);
+  }
+  
+bootstrap();
 
-parser();
-// syncDB();
