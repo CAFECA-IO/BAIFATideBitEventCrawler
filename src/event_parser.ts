@@ -34,6 +34,16 @@ const trades_keys_str = trades_keys.join(", ");
 
 const jobs_keys = ["id", "table_name", "sync_id", "parsed_id", "created_at", "updated_at"];
 const jobs_keys_str = jobs_keys.join(", ");
+
+const reasonPairs = {
+  '800': '820',
+  '820': '800',
+  '810': '830',
+  '830': '810',
+  '2000': '2001',
+  '2001': '2000'
+};
+
 interface AccountVersion {
   id: number;
   member_id: number;
@@ -175,6 +185,14 @@ function convertWithdraw(
   console.log(`convertWithdraw accountVersions: `, accountVersions);
   const withdrawAccountVeresion = accountVersions.find(av => av.reason === REASON[`WITHDRAW${type ? `_${type}` : ""}`]);
   const withdrawFeeAccountVeresion = accountVersions.find(av => av.reason === REASON[`WITHDRAW_FEE${type ? `_${type}` : ""}`]);
+  if (!withdrawAccountVeresion || !withdrawFeeAccountVeresion) {
+    // Deprecated: [debug] (20240229 - tzuhan)
+    console.error(
+      `[convertWithdraw] withdrawAccountVeresion or withdrawFeeAccountVeresion is null, accountVersions: `,
+      accountVersions
+    );
+    return null;
+  }
   const currency = currencyMap[withdrawAccountVeresion.currency].code.toUpperCase();
   const tidebitEventCode =
     EVENT_CODE[`WITHDRAW${type ? `_${type}` : ""}`][currency];
@@ -489,12 +507,10 @@ async function doJob() {
           );
           console.log(`doJob existedTidebitEvent: `, existedTidebitEvent)
           if (existedTidebitEvent) continue;
-          const relatedAccountVersions = accountVersions.filter(av =>
-            av.modifiable_id === accountVersion.modifiable_id && av.modifiable_type === 'Withdraw'
-          );
-          tidebitEvent = withdrawParser(relatedAccountVersions);
+          const match = accountVersions.find(matchAv => matchAv.reason.toString() === reasonPairs[accountVersion.reason.toString()] && matchAv.modifiable_id === accountVersion.modifiable_id);
+          tidebitEvent = withdrawParser([accountVersion, match]);
           if (tidebitEvent) {
-            currentEndId = Math.max(...relatedAccountVersions.map(av => av.id));
+            currentEndId = Math.max(accountVersion.id, match.id);
             tidebitEvents.push(tidebitEvent);
           } else {
             keepGo = true;
