@@ -181,8 +181,6 @@ function convertWithdraw(
   type: string,
   accountVersions: AccountVersion[]
 ): TideBitEvent {
-  console.log(`convertWithdraw type: `, type);
-  console.log(`convertWithdraw accountVersions: `, accountVersions);
   const withdrawAccountVeresion = accountVersions.find(av => av.reason === REASON[`WITHDRAW${type ? `_${type}` : ""}`]);
   const withdrawFeeAccountVeresion = accountVersions.find(av => av.reason === REASON[`WITHDRAW_FEE${type ? `_${type}` : ""}`]);
   if (!withdrawAccountVeresion || !withdrawFeeAccountVeresion) {
@@ -196,7 +194,6 @@ function convertWithdraw(
   const currency = currencyMap[withdrawAccountVeresion.currency].code.toUpperCase();
   const tidebitEventCode =
     EVENT_CODE[`WITHDRAW${type ? `_${type}` : ""}`][currency];
-  console.log(`convertWithdraw tidebitEvent type: `, EVENT_TYPE[`WITHDRAW${type ? `_${type}` : ""}`]);
   const tidebitEvent: TideBitEvent = {
     event_code: tidebitEventCode ?? EVENT_CODE.UNDEFINED,
     type: EVENT_TYPE[`WITHDRAW${type ? `_${type}` : ""}`],
@@ -452,6 +449,7 @@ async function eventParser(
       return null;
   }
 }
+let loop = 0;
 
 async function doJob() {
   const t = await warehouseDB.transaction();
@@ -459,14 +457,17 @@ async function doJob() {
   try {
     let keepGo = false;
     const table_name = 'account_versions';
-    const count = 100; // TODO: change to 10000 (20240306 - tzuhan)
+    const count = 10; // TODO: change to 10000 (20240306 - tzuhan)
 
     // step1: read job status from warehouse
     const step1Query = `SELECT ${jobs_keys_str} FROM jobs WHERE table_name = '${table_name}';`;
     const [jobStatus, jobStatusMetadata] = await warehouseDB.query(step1Query);
     const jobStartId: number = (jobStatus[0] as { parsed_id: number })?.parsed_id || 0;
-    console.log(`doJob, jobStartId: ${jobStartId}`);
-
+    console.log(`doJob, jobStartId: ${jobStartId}`, jobStatus);
+    
+    if(loop > 1) return false;
+    loop++;
+    
     // step1.1: check latest id from warehouse
     const [latestIdResults, latestIdMetadata] = await warehouseDB.query(`SELECT MAX(id) as id FROM account_versions;`);
     const latestId: number = (latestIdResults[0] as { id: number })?.id || 0;
@@ -530,7 +531,7 @@ async function doJob() {
         });
         const step4Query = `INSERT INTO accounting_events (event_code, type, details, occurred_at, created_at, account_version_ids) VALUES ${step4Values.join(',')};`;
         console.log(`doJob, step4Query: `, step4Query);
-        // const [step4Results] = await warehouseDB.query(step4Query, { transaction: t });
+        const [step4Results] = await warehouseDB.query(step4Query, { transaction: t });
       }
 
       // step5: update or insert job status
@@ -538,7 +539,7 @@ async function doJob() {
       const unix_timestamp = Math.round(new Date().getTime() / 1000);
       const step5Query = `INSERT INTO jobs (table_name, sync_id, parsed_id, created_at, updated_at) VALUES ('${table_name}', ${(jobStatus[0] as { sync_id: number })?.sync_id || 0}, ${currentEndId}, ${unix_timestamp}, ${unix_timestamp}) ON CONFLICT(table_name) DO UPDATE SET parsed_id = ${currentEndId}, updated_at = ${unix_timestamp};`;
       console.log(`doJob, step5Query: `, step5Query);
-      // const [step5Results] = await warehouseDB.query(step5Query, { transaction: t });
+      const [step5Results] = await warehouseDB.query(step5Query, { transaction: t });
 
       await t.commit(); // Commit the transaction
 
